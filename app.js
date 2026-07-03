@@ -405,6 +405,32 @@ async function migrateEverydaySeedContent() {
   }
 }
 
+async function removeExactDuplicateIdeas() {
+  const ideas = (await getAll(IDEA_STORE)).sort((a, b) =>
+    String(a.createdAt).localeCompare(String(b.createdAt)),
+  );
+  const seen = new Set();
+  for (const idea of ideas) {
+    if (getResultMediaIds(idea).length) continue;
+    const signature = JSON.stringify({
+      theme: idea.theme,
+      concept: idea.concept || "",
+      outfitTags: idea.outfitTags || [],
+      poseTags: idea.poseTags || [],
+      placeTypes: idea.placeTypes || [],
+      specificPlace: idea.specificPlace || "",
+      note: idea.note || "",
+      status: idea.status,
+    });
+    if (!seen.has(signature)) {
+      seen.add(signature);
+      continue;
+    }
+    await deleteRecord(IDEA_STORE, idea.id);
+    for (const mediaId of getIdeaMediaIds(idea)) await deleteRecord(IMAGE_STORE, mediaId);
+  }
+}
+
 async function migrateSeedImages() {
   const ideas = await getAll(IDEA_STORE);
   const catByTheme = {
@@ -1225,6 +1251,7 @@ async function init() {
   try {
     await seedIfNeeded();
     await migrateEverydaySeedContent();
+    await removeExactDuplicateIdeas();
     await migrateSeedImages();
     await loadData();
     render();

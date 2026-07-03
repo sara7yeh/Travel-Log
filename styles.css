@@ -149,31 +149,6 @@ h1 {
   box-shadow: var(--shadow);
 }
 
-.hero::before,
-.hero::after {
-  position: absolute;
-  content: "";
-  pointer-events: none;
-}
-
-.hero::before {
-  width: 130px;
-  height: 18px;
-  right: 36px;
-  top: 34px;
-  border-top: 2px dashed #d9aa9b;
-  transform: rotate(-5deg);
-}
-
-.hero::after {
-  width: 56px;
-  height: 56px;
-  left: 42%;
-  bottom: -20px;
-  border: 2px solid #a9c1ad;
-  border-radius: 50%;
-}
-
 .hero-copy {
   display: grid;
   gap: 15px;
@@ -214,21 +189,22 @@ h1 {
   position: relative;
   align-self: stretch;
   min-height: 260px;
+  border-left: 1px solid #f0ebe6;
 }
 
 .hero-cat {
   position: absolute;
-  right: 15%;
-  bottom: 46px;
-  width: min(230px, 70%);
+  right: 10%;
+  bottom: 72px;
+  width: min(245px, 72%);
   filter: drop-shadow(0 14px 18px rgba(65, 55, 48, 0.12));
 }
 
 .cat-note {
   position: absolute;
   z-index: 1;
-  right: 0;
-  top: 24px;
+  right: 2%;
+  top: 18px;
   padding: 9px 12px;
   border: 1px solid #e8d8d0;
   border-radius: 8px;
@@ -1380,6 +1356,8 @@ body.reduce-motion *::after {
 
   .hero-side {
     min-height: 250px;
+    border-left: 0;
+    border-top: 1px solid #f0ebe6;
   }
 
   .hero-cat {
