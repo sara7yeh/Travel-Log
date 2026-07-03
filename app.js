@@ -342,7 +342,6 @@ function render() {
   const capturedIdeas = filtered.filter((idea) => idea.status === "captured");
   const plannedCount = state.ideas.filter((idea) => idea.status === "planned").length;
   const capturedCount = state.ideas.filter((idea) => idea.status === "captured").length;
-  const mediaCount = state.ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
 
   app.innerHTML = `
     <main class="shell">
@@ -354,7 +353,6 @@ function render() {
             <h1>拍照灵感搭配库</h1>
           </div>
         </div>
-        <button class="ghost-btn" data-action="open-form">${icons.plus}<span>新增灵感</span></button>
       </header>
 
       <section class="hero">
@@ -370,7 +368,6 @@ function render() {
           <div class="cat-note">今天想拍什么？</div>
           <img class="hero-cat" src="./assets/camera-cat.png" alt="抱着相机的小猫" />
           <div class="hero-stats">
-            <div class="stat"><strong>${mediaCount}</strong><span>参考</span></div>
             <div class="stat"><strong>${state.ideas.length}</strong><span>企划</span></div>
             <div class="stat"><strong>${plannedCount}/${capturedCount}</strong><span>想拍 / 已拍</span></div>
           </div>
@@ -379,7 +376,7 @@ function render() {
 
       <div class="main-grid">
         <section>
-          <section class="ideas-section first-section">
+          <section class="ideas-section first-section" id="planned-section">
             <div class="section-head">
               <div>
                 <span class="section-kicker">PLANNED SHOOTS</span>
@@ -395,7 +392,7 @@ function render() {
             }
           </section>
 
-          <section class="captured-section">
+          <section class="captured-section" id="captured-section">
             <div class="section-head">
               <div>
                 <span class="section-kicker">MY WORKS</span>
@@ -748,6 +745,8 @@ function handleClick(event) {
   if (action === "set-status") {
     state.filters.status = target.dataset.status;
     render();
+    if (target.dataset.status === "planned") scrollToSection("planned-section");
+    if (target.dataset.status === "captured") scrollToSection("captured-section");
   }
   if (action === "clear-filters") {
     state.filters = { theme: "全部", status: "all", outfit: "", pose: "", place: "" };
@@ -779,6 +778,12 @@ function handleClick(event) {
     state.viewerZoom = 1;
     render();
   }
+}
+
+function scrollToSection(id) {
+  window.requestAnimationFrame(() => {
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 function openForm(id = "new") {
