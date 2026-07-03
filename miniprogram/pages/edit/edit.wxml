@@ -1,0 +1,15 @@
+<view class="form-page">
+  <view class="form-header"><view><text class="eyebrow">NEW INSPIRATION</text><text class="title">{{id ? '编辑拍摄企划' : '新增拍摄企划'}}</text></view><image src="/assets/cat-planning.png" mode="aspectFit"/></view>
+  <view class="media-picker" bindtap="chooseMedia"><text class="plus">＋</text><text>添加参考照片或视频</text><text class="optional">可多选，可不上传</text></view>
+  <scroll-view class="media-strip" scroll-x wx:if="{{referenceMedia.length}}">
+    <view class="media-item" wx:for="{{referenceMedia}}" wx:key="path"><image wx:if="{{item.type === 'image'}}" src="{{item.path}}" mode="aspectFill"/><video wx:else src="{{item.path}}" controls/><button data-index="{{index}}" catchtap="removeMedia">×</button></view>
+  </scroll-view>
+  <view class="field"><view class="field-label">企划主题 <text class="required">*</text></view><input value="{{theme}}" data-field="theme" bindinput="bindField" placeholder="例如 马面裙国风写真、角色 cosplay"/></view>
+  <view class="field"><text>具体想拍什么（可选）</text><textarea value="{{concept}}" data-field="concept" bindinput="bindField" placeholder="画面、角色、旅行活动或视频想法"/></view>
+  <view class="field"><text>衣服造型（可选）</text><input value="{{outfitText}}" data-field="outfitText" bindinput="bindField" placeholder="马面裙，假发，红色围巾"/><text class="help">多个标签用逗号隔开</text></view>
+  <view class="field"><text>姿势构图（可选）</text><input value="{{poseText}}" data-field="poseText" bindinput="bindField" placeholder="御姐站姿，蹲姿，背影"/></view>
+  <view class="field"><text>适配地点类型（可选）</text><input value="{{placeText}}" data-field="placeText" bindinput="bindField" placeholder="海边，咖啡厅，漫展，酒店"/></view>
+  <view class="field"><text>具体地点（可选）</text><input value="{{specificPlace}}" data-field="specificPlace" bindinput="bindField" placeholder="例如 云南、某家咖啡厅"/></view>
+  <view class="field"><text>备注（可选）</text><textarea value="{{note}}" data-field="note" bindinput="bindField" placeholder="光线、道具、拍摄提醒……"/></view>
+  <button class="primary-button save" bindtap="save">保存企划</button>
+</view>

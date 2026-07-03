@@ -1,0 +1,52 @@
+<view class="page-shell">
+  <view class="topbar">
+    <view class="brand">
+      <image src="/assets/cat-camera.png" mode="aspectFit" />
+      <view><text class="eyebrow">MIAO'S PHOTO NOTES</text><text class="brand-title">拍照企划簿</text></view>
+    </view>
+    <button class="add-icon" bindtap="addPlan" aria-label="新增企划">＋</button>
+  </view>
+
+  <view class="hero">
+    <view class="hero-copy">
+      <text class="pill">今日份灵感</text>
+      <text class="hero-title">把想拍的画面，\n先悄悄藏进这里。</text>
+      <text class="hero-desc">收好风格、衣服、姿势和地点，出发时照着拍。</text>
+      <button class="primary-button hero-button" bindtap="addPlan">＋ 记录新企划</button>
+    </view>
+    <image class="hero-cat" src="/assets/cat-happy.png" mode="aspectFit" />
+    <view class="status-jumps">
+      <button data-target="planned-section" bindtap="jumpTo"><text class="jump-count">{{plannedCount}}</text><text>想拍企划</text></button>
+      <button data-target="captured-section" bindtap="jumpTo"><text class="jump-count">{{capturedCount}}</text><text>已拍作品</text></button>
+    </view>
+  </view>
+
+  <view id="planned-section" class="section">
+    <view class="section-heading"><view><text class="eyebrow coral">PLANNED SHOOTS</text><text class="section-title">拍摄企划</text><text class="section-desc">{{plannedCount}} 个想拍的计划。</text></view></view>
+    <view class="card-grid" wx:if="{{planned.length}}">
+      <view class="plan-card" wx:for="{{planned}}" wx:key="id" data-id="{{item.id}}" bindtap="openPlan">
+        <view class="cover">
+          <image wx:if="{{item.cover.type === 'image'}}" src="{{item.cover.path}}" mode="aspectFill" />
+          <video wx:else src="{{item.cover.path}}" controls="{{false}}" muted />
+          <text class="status-badge">想拍</text>
+        </view>
+        <view class="card-body"><text class="card-title">{{item.theme}}</text><text class="card-note">{{item.concept || item.note || '点开查看灵感和参考素材'}}</text>
+          <view class="tags"><text class="tag" wx:for="{{item.poseTags}}" wx:for-item="tag" wx:key="*this">{{tag}}</text><text class="tag" wx:for="{{item.placeTypes}}" wx:for-item="tag" wx:key="*this">{{tag}}</text></view>
+          <view class="card-actions"><button class="ghost-button" catchtap="editPlan" data-id="{{item.id}}">编辑</button><button class="primary-button compact" catchtap="changeStatus" data-id="{{item.id}}" data-status="captured">标记已拍</button></view>
+        </view>
+      </view>
+    </view>
+    <view class="empty" wx:else><image src="/assets/cat-planning.png" mode="aspectFit"/><text>还没有想拍企划</text><button class="primary-button compact" bindtap="addPlan">新增企划</button></view>
+  </view>
+
+  <view id="captured-section" class="section captured-section">
+    <view class="section-heading"><view><text class="eyebrow coral">MY WORKS</text><text class="section-title">已拍作品</text><text class="section-desc">{{capturedCount}} 个已经完成的企划。</text></view></view>
+    <view class="card-grid" wx:if="{{captured.length}}">
+      <view class="plan-card" wx:for="{{captured}}" wx:key="id" data-id="{{item.id}}" bindtap="openPlan">
+        <view class="cover"><image wx:if="{{item.cover.type === 'image'}}" src="{{item.cover.path}}" mode="aspectFill"/><video wx:else src="{{item.cover.path}}" controls="{{false}}" muted/><text class="status-badge done">已拍</text></view>
+        <view class="card-body"><text class="card-title">{{item.theme}}</text><text class="card-note">{{item.resultMedia.length}} 个作品素材</text><view class="card-actions"><button class="ghost-button" catchtap="changeStatus" data-id="{{item.id}}" data-status="planned">移回想拍</button><button class="primary-button compact" catchtap="openPlan" data-id="{{item.id}}">查看作品</button></view></view>
+      </view>
+    </view>
+    <view class="empty" wx:else><image src="/assets/cat-winter.png" mode="aspectFit"/><text>拍完的作品会收进这里</text></view>
+  </view>
+</view>

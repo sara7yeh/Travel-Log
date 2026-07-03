@@ -1,0 +1,4 @@
+{
+  "desc": "拍照灵感搭配库",
+  "rules": [{ "action": "allow", "page": "*" }]
+}

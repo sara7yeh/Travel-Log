@@ -1,0 +1,13 @@
+{
+  "description": "拍照灵感搭配库微信小程序",
+  "appid": "touristappid",
+  "projectname": "Travel-Log-MiniProgram",
+  "compileType": "miniprogram",
+  "miniprogramRoot": "./",
+  "setting": {
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true
+  }
+}
