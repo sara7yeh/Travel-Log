@@ -2,6 +2,22 @@ const DB_NAME = "shot-style-library";
 const DB_VERSION = 1;
 const IDEA_STORE = "ideas";
 const IMAGE_STORE = "images";
+const SETTINGS_KEY = "photo-notes-settings";
+const SEED_DISABLED_KEY = "photo-notes-seed-disabled";
+
+const defaultSettings = {
+  language: "zh-CN",
+  fontSize: "standard",
+  reduceMotion: false,
+};
+
+function loadSettings() {
+  try {
+    return { ...defaultSettings, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}") };
+  } catch {
+    return { ...defaultSettings };
+  }
+}
 
 const seedIdeas = [
   {
@@ -60,6 +76,8 @@ let state = {
   viewingIdeaId: null,
   viewerMediaId: null,
   viewerZoom: 1,
+  settingsOpen: false,
+  settings: loadSettings(),
   selectedMediaFiles: [],
   selectedMediaUrls: [],
   toastTimer: null,
@@ -83,7 +101,98 @@ const icons = {
     '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m20 6-11 11-5-5"/></svg>',
   filter:
     '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.5V20l4 2v-9.5Z"/></svg>',
+  settings:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.36.7.66.96.3.26.69.4 1.09.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>',
 };
+
+const translations = {
+  "拍照灵感搭配库": "Photo Inspiration Library",
+  "今日份灵感": "Today's inspiration",
+  "把想拍的画面，": "Keep the scenes you dream of,",
+  "先悄悄藏进这里。": "right here for later.",
+  "下一次出发，会有好多好看的照片。": "Your next trip will already have beautiful shots waiting.",
+  "今天想拍什么？": "What do you want to shoot?",
+  "记录一个新想法": "Add a new plan",
+  "企划": "Plans",
+  "想拍 / 已拍": "Planned / Captured",
+  "拍摄企划": "Shoot plans",
+  "已拍作品": "Captured works",
+  "清空筛选": "Clear filters",
+  "快速找灵感": "Find inspiration",
+  "筛选": "Filters",
+  "状态": "Status",
+  "全部": "All",
+  "想拍": "Planned",
+  "已拍": "Captured",
+  "风格主题": "Theme",
+  "衣服造型": "Outfit",
+  "姿势构图": "Pose & composition",
+  "适配地点类型": "Location type",
+  "新增灵感": "Add plan",
+  "编辑": "Edit",
+  "删除": "Delete",
+  "未定具体地点": "Location undecided",
+  "拍完的企划会来到这里": "Completed shoots will appear here",
+  "点击企划里的“已拍”，再上传你真正拍好的照片。": "Mark a plan as captured, then add the photos you made.",
+  "编辑拍摄企划": "Edit shoot plan",
+  "新增拍摄企划": "New shoot plan",
+  "取消": "Cancel",
+  "保存修改": "Save changes",
+  "保存灵感": "Save plan",
+  "关闭": "Close",
+  "上传多张参考图，也可以加视频": "Upload reference photos or videos",
+  "参考图 / 视频（可选）": "References (optional)",
+  "想拍类别 / 风格主题": "Plan / theme",
+  "具体地点（可选）": "Specific location (optional)",
+  "具体想拍什么（可选）": "What to shoot (optional)",
+  "衣服/造型标签（可选）": "Outfit tags (optional)",
+  "姿势/构图标签（可选）": "Pose tags (optional)",
+  "适配地点类型（可选）": "Location tags (optional)",
+  "备注（可选）": "Notes (optional)",
+  "用逗号、顿号或换行分隔。": "Separate tags with commas or new lines.",
+  "设置": "Settings",
+  "界面语言": "Language",
+  "字体大小": "Text size",
+  "小": "Small",
+  "标准": "Standard",
+  "大": "Large",
+  "减少动画": "Reduce motion",
+  "减少弹层和滚动动画": "Reduce panel and scrolling animation",
+  "联系开发者": "Contact developer",
+  "发送邮件": "Send email",
+  "数据与隐私": "Data & privacy",
+  "企划和图片只保存在这台设备的浏览器中。": "Plans and images are stored only in this browser on this device.",
+  "清空本机数据": "Clear local data",
+  "关于": "About",
+  "喵的拍照笔记 · 网页版": "Miao's Photo Notes · Web",
+};
+
+function applySettings() {
+  document.documentElement.lang = state.settings.language;
+  document.body.dataset.fontSize = state.settings.fontSize;
+  document.body.classList.toggle("reduce-motion", state.settings.reduceMotion);
+}
+
+function translateInterface() {
+  if (state.settings.language !== "en") return;
+  const walker = document.createTreeWalker(app, NodeFilter.SHOW_TEXT);
+  let node;
+  while ((node = walker.nextNode())) {
+    const original = node.nodeValue.trim();
+    if (translations[original]) node.nodeValue = node.nodeValue.replace(original, translations[original]);
+    else if (/^\d+ 个还想拍的计划。$/.test(original)) node.nodeValue = `${original.match(/\d+/)[0]} planned shoots.`;
+    else if (/^\d+ 个已经完成的企划。$/.test(original)) node.nodeValue = `${original.match(/\d+/)[0]} completed shoots.`;
+    else if (/^\d+ 个参考$/.test(original)) node.nodeValue = `${original.match(/\d+/)[0]} references`;
+  }
+  document.querySelectorAll("[placeholder]").forEach((element) => {
+    const placeholderMap = {
+      "例如 角色 cosplay、马面裙写真": "e.g. Character cosplay or hanfu portrait",
+      "例如 云南、某家咖啡厅": "e.g. Yunnan or a favorite cafe",
+      "光线、氛围、拍摄小提醒": "Lighting, mood, and shooting notes",
+    };
+    if (placeholderMap[element.placeholder]) element.placeholder = placeholderMap[element.placeholder];
+  });
+}
 
 function openDb() {
   return new Promise((resolve, reject) => {
@@ -242,7 +351,7 @@ function renderMedia(id, alt, className = "") {
 
 async function seedIfNeeded() {
   const existing = await getAll(IDEA_STORE);
-  if (existing.length > 0) return;
+  if (existing.length > 0 || localStorage.getItem(SEED_DISABLED_KEY) === "true") return;
 
   for (const item of seedIdeas) {
     const now = new Date().toISOString();
@@ -378,6 +487,7 @@ function render() {
             <h1>拍照灵感搭配库</h1>
           </div>
         </div>
+        <button class="settings-button" data-action="open-settings" title="设置" aria-label="设置">${icons.settings}<span>设置</span></button>
       </header>
 
       <section class="hero">
@@ -442,9 +552,12 @@ function render() {
     ${renderIdeaDetail()}
     ${renderMediaViewer()}
     ${renderDrawer()}
+    ${renderSettings()}
     <div class="toast" id="toast"></div>
   `;
 
+  applySettings();
+  translateInterface();
   bindEvents();
 }
 
@@ -641,6 +754,53 @@ function renderEmpty(title, copy) {
   `;
 }
 
+function renderSettings() {
+  if (!state.settingsOpen) return "";
+  const { language, fontSize, reduceMotion } = state.settings;
+  return `
+    <div class="settings-backdrop ${state.settingsOpen ? "open" : ""}" data-action="close-settings">
+      <section class="settings-panel" role="dialog" aria-modal="true" aria-label="设置" data-stop-close>
+        <div class="settings-head">
+          <div><p class="eyebrow">PREFERENCES</p><h2>设置</h2></div>
+          <button class="icon-btn" data-action="close-settings" title="关闭" aria-label="关闭">${icons.close}</button>
+        </div>
+        <div class="settings-content">
+          <div class="setting-row">
+            <div><strong>界面语言</strong><span>Language</span></div>
+            <select data-setting="language" aria-label="界面语言">
+              <option value="zh-CN" ${language === "zh-CN" ? "selected" : ""}>简体中文</option>
+              <option value="en" ${language === "en" ? "selected" : ""}>English</option>
+            </select>
+          </div>
+          <div class="setting-group">
+            <strong>字体大小</strong>
+            <div class="setting-segmented" role="group" aria-label="字体大小">
+              <button data-action="set-font-size" data-size="small" class="${fontSize === "small" ? "active" : ""}">小</button>
+              <button data-action="set-font-size" data-size="standard" class="${fontSize === "standard" ? "active" : ""}">标准</button>
+              <button data-action="set-font-size" data-size="large" class="${fontSize === "large" ? "active" : ""}">大</button>
+            </div>
+          </div>
+          <label class="setting-row setting-toggle">
+            <div><strong>减少动画</strong><span>减少弹层和滚动动画</span></div>
+            <input type="checkbox" data-setting="reduceMotion" ${reduceMotion ? "checked" : ""} />
+          </label>
+          <div class="settings-divider"></div>
+          <div class="setting-row contact-row">
+            <div><strong>联系开发者</strong><span>sara7yeh@gmail.com</span></div>
+            <a class="contact-button" href="mailto:sara7yeh@gmail.com?subject=Miao%27s%20Photo%20Notes%20Feedback">发送邮件</a>
+          </div>
+          <div class="setting-info">
+            <strong>数据与隐私</strong>
+            <p>企划和图片只保存在这台设备的浏览器中。</p>
+            <button class="danger-button" data-action="clear-local-data">清空本机数据</button>
+          </div>
+          <div class="setting-about"><strong>关于</strong><span>喵的拍照笔记 · 网页版</span><small>Version 1.1</small></div>
+        </div>
+      </section>
+    </div>
+  `;
+}
+
 function renderDrawer() {
   const editing = state.editingId ? state.ideas.find((idea) => idea.id === state.editingId) : null;
   const editingMediaIds = editing ? getIdeaMediaIds(editing) : [];
@@ -746,6 +906,20 @@ function bindEvents() {
       render();
     });
   });
+  document.querySelectorAll("[data-setting]").forEach((control) => {
+    control.addEventListener("change", handleSettingChange);
+  });
+}
+
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.settings));
+}
+
+function handleSettingChange(event) {
+  const key = event.target.dataset.setting;
+  state.settings[key] = event.target.type === "checkbox" ? event.target.checked : event.target.value;
+  saveSettings();
+  render();
 }
 
 function handleClick(event) {
@@ -758,6 +932,20 @@ function handleClick(event) {
   if (target.dataset.stopClose !== undefined) return;
   if (action === "open-form") openForm();
   if (action === "close-form") closeForm();
+  if (action === "open-settings") {
+    state.settingsOpen = true;
+    render();
+  }
+  if (action === "close-settings") {
+    state.settingsOpen = false;
+    render();
+  }
+  if (action === "set-font-size") {
+    state.settings.fontSize = target.dataset.size;
+    saveSettings();
+    render();
+  }
+  if (action === "clear-local-data") clearLocalData();
   if (action === "set-theme") {
     state.filters.theme = target.dataset.theme;
     render();
@@ -807,6 +995,20 @@ function handleClick(event) {
     state.viewerZoom = 1;
     render();
   }
+}
+
+function clearLocalData() {
+  const message = state.settings.language === "en"
+    ? "Delete all plans, reference images, and captured works stored in this browser?"
+    : "确定清空这台设备上的全部企划、参考图片和已拍作品吗？";
+  if (!window.confirm(message)) return;
+  localStorage.setItem(SEED_DISABLED_KEY, "true");
+  const request = indexedDB.deleteDatabase(DB_NAME);
+  request.onsuccess = () => {
+    state.settingsOpen = false;
+    window.location.reload();
+  };
+  request.onerror = () => showToast(state.settings.language === "en" ? "Could not clear local data." : "清空失败，请稍后再试。");
 }
 
 function scrollToSection(id) {
