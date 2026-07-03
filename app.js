@@ -57,7 +57,9 @@ let state = {
     place: "",
   },
   editingId: null,
-  viewingTheme: null,
+  viewingIdeaId: null,
+  viewerMediaId: null,
+  viewerZoom: 1,
   selectedMediaFiles: [],
   selectedMediaUrls: [],
   toastTimer: null,
@@ -220,6 +222,10 @@ function getIdeaMediaIds(idea) {
   return [];
 }
 
+function getResultMediaIds(idea) {
+  return Array.isArray(idea?.resultMediaIds) ? idea.resultMediaIds : [];
+}
+
 function mediaUrl(id) {
   return state.mediaUrls.get(id) || "";
 }
@@ -278,6 +284,7 @@ async function loadData() {
     .map((idea) => ({
       ...idea,
       mediaIds: getIdeaMediaIds(idea),
+      resultMediaIds: getResultMediaIds(idea),
       concept: idea.concept || "",
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
@@ -331,7 +338,8 @@ function tagChips(tags, className = "") {
 
 function render() {
   const filtered = getFilteredIdeas();
-  const groups = getThemeGroups();
+  const plannedIdeas = filtered.filter((idea) => idea.status === "planned");
+  const capturedIdeas = filtered.filter((idea) => idea.status === "captured");
   const plannedCount = state.ideas.filter((idea) => idea.status === "planned").length;
   const capturedCount = state.ideas.filter((idea) => idea.status === "captured").length;
   const mediaCount = state.ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
@@ -363,7 +371,7 @@ function render() {
           <img class="hero-cat" src="./assets/camera-cat.png" alt="抱着相机的小猫" />
           <div class="hero-stats">
             <div class="stat"><strong>${mediaCount}</strong><span>参考</span></div>
-            <div class="stat"><strong>${groups.length}</strong><span>主题</span></div>
+            <div class="stat"><strong>${state.ideas.length}</strong><span>企划</span></div>
             <div class="stat"><strong>${plannedCount}/${capturedCount}</strong><span>想拍 / 已拍</span></div>
           </div>
         </div>
@@ -371,31 +379,34 @@ function render() {
 
       <div class="main-grid">
         <section>
-          <div class="section-head">
-            <div>
-              <span class="section-kicker">COLLECTIONS</span>
-              <h2>想拍类别墙</h2>
-            </div>
-            <button class="text-btn" data-action="clear-filters">清空筛选</button>
-          </div>
-          ${
-            groups.length
-              ? `<div class="theme-grid">${groups.map(renderThemeCard).join("")}</div>`
-              : renderEmpty("还没有想拍类别", "先新增一个企划，类别墙会自动长出来。")
-          }
-
-          <section class="ideas-section">
+          <section class="ideas-section first-section">
             <div class="section-head">
               <div>
-                <span class="section-kicker">SHOT IDEAS</span>
+                <span class="section-kicker">PLANNED SHOOTS</span>
                 <h2>拍摄企划</h2>
-                <p>${filtered.length} 条符合当前筛选。</p>
+                <p>${plannedIdeas.length} 个还想拍的计划。</p>
+              </div>
+              <button class="text-btn" data-action="clear-filters">清空筛选</button>
+            </div>
+            ${
+              plannedIdeas.length
+                ? `<div class="ideas-grid">${plannedIdeas.map(renderIdeaCard).join("")}</div>`
+                : renderEmpty("还没有待拍企划", "记录一个想法，之后就照着参考去拍。")
+            }
+          </section>
+
+          <section class="captured-section">
+            <div class="section-head">
+              <div>
+                <span class="section-kicker">MY WORKS</span>
+                <h2>已拍作品</h2>
+                <p>${capturedIdeas.length} 个已经完成的企划。</p>
               </div>
             </div>
             ${
-              filtered.length
-                ? `<div class="ideas-grid">${filtered.map(renderIdeaCard).join("")}</div>`
-                : renderEmpty("没有匹配的企划", "换一个标签，或者清空筛选再看看。")
+              capturedIdeas.length
+                ? `<div class="ideas-grid captured-grid">${capturedIdeas.map(renderIdeaCard).join("")}</div>`
+                : renderCapturedEmpty()
             }
           </section>
         </section>
@@ -404,7 +415,8 @@ function render() {
       </div>
     </main>
 
-    ${renderThemeDetail()}
+    ${renderIdeaDetail()}
+    ${renderMediaViewer()}
     ${renderDrawer()}
     <div class="toast" id="toast"></div>
   `;
@@ -412,35 +424,18 @@ function render() {
   bindEvents();
 }
 
-function renderThemeCard(group) {
-  const mediaIds = getIdeaMediaIds(group.cover);
-  const count = group.ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
-  return `
-    <button class="theme-card" data-action="open-theme" data-theme="${escapeHtml(group.theme)}">
-      <div class="theme-cover">
-        ${renderMedia(mediaIds[0], `${group.theme}参考`) || '<div class="no-media">等待添加参考</div>'}
-        <span class="theme-count">${count} 个参考</span>
-      </div>
-      <div class="theme-body">
-        <h3>${escapeHtml(group.theme)}</h3>
-        <div class="chip-row">${tagChips(group.placeTypes, "sage")}</div>
-        <div class="chip-row">${tagChips(group.outfitTags, "sky")}</div>
-      </div>
-    </button>
-  `;
-}
-
 function renderIdeaCard(idea) {
-  const mediaIds = getIdeaMediaIds(idea);
+  const referenceIds = getIdeaMediaIds(idea);
+  const resultIds = getResultMediaIds(idea);
+  const displayIds = idea.status === "captured" && resultIds.length ? resultIds : referenceIds;
   const statusLabel = idea.status === "captured" ? "已拍" : "想拍";
   return `
-    <article class="idea-card">
+    <article class="idea-card ${idea.status === "captured" ? "captured-card" : ""}" data-action="open-idea" data-id="${idea.id}">
       <div class="idea-photo">
-        ${renderMediaMosaic(idea)}
+        ${renderMediaMosaic(displayIds, idea.theme)}
         <span class="status-pill">${statusLabel}</span>
-        <span class="media-count">${mediaIds.length} 个参考</span>
+        <span class="media-count">${displayIds.length} ${idea.status === "captured" && resultIds.length ? "张成片" : "个参考"}</span>
         <div class="idea-actions">
-          <button class="icon-btn" title="切换状态" data-action="toggle-status" data-id="${idea.id}">${icons.check}</button>
           <button class="icon-btn" title="编辑" data-action="edit" data-id="${idea.id}">${icons.edit}</button>
           <button class="icon-btn" title="删除" data-action="delete" data-id="${idea.id}">${icons.trash}</button>
         </div>
@@ -455,76 +450,113 @@ function renderIdeaCard(idea) {
         <div class="chip-row">${tagChips(idea.outfitTags, "sky")}</div>
         <div class="chip-row">${tagChips(idea.poseTags)}</div>
         ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
+        <div class="card-footer-actions">
+          ${
+            idea.status === "planned"
+              ? `<button class="captured-btn" data-action="mark-captured" data-id="${idea.id}">${icons.check}<span>已拍</span></button>`
+              : `<button class="ghost-btn" data-action="open-idea" data-id="${idea.id}">${icons.camera}<span>查看成片</span></button>`
+          }
+        </div>
       </div>
     </article>
   `;
 }
 
-function renderMediaMosaic(idea) {
-  const ids = getIdeaMediaIds(idea);
+function renderMediaMosaic(ids, theme) {
   if (!ids.length) return '<div class="no-media">等待添加参考</div>';
-  if (ids.length === 1) return renderMedia(ids[0], `${idea.theme}参考图`);
+  if (ids.length === 1) return renderMedia(ids[0], `${theme}图片`);
   const visible = ids.slice(0, 4);
   return `
     <div class="media-mosaic count-${visible.length}">
-      ${visible.map((id) => `<div>${renderMedia(id, `${idea.theme}参考`)}</div>`).join("")}
+      ${visible.map((id) => `<div>${renderMedia(id, `${theme}图片`)}</div>`).join("")}
     </div>
   `;
 }
 
-function renderThemeDetail() {
-  if (!state.viewingTheme) return "";
-  const ideas = state.ideas.filter((idea) => idea.theme === state.viewingTheme);
-  const mediaTotal = ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
+function renderIdeaDetail() {
+  const idea = state.ideas.find((item) => item.id === state.viewingIdeaId);
+  if (!idea) return "";
+  const referenceIds = getIdeaMediaIds(idea);
+  const resultIds = getResultMediaIds(idea);
   return `
-    <div class="drawer-backdrop theme-backdrop open" data-action="close-theme">
+    <div class="drawer-backdrop theme-backdrop open" data-action="close-idea">
       <section class="theme-detail" data-stop-close>
         <div class="drawer-head">
           <div>
-            <p class="eyebrow">COLLECTION</p>
-            <h2>${escapeHtml(state.viewingTheme)}</h2>
-            <p class="detail-summary">${ideas.length} 个企划 · ${mediaTotal} 个参考</p>
+            <p class="eyebrow">${idea.status === "captured" ? "MY WORK" : "SHOT PLAN"}</p>
+            <h2>${escapeHtml(idea.theme)}</h2>
+            <p class="detail-summary">${escapeHtml(idea.concept || "拍摄企划详情")}</p>
           </div>
           <div class="detail-head-actions">
-            <button class="danger-btn" data-action="delete-theme" data-theme="${escapeHtml(state.viewingTheme)}">${icons.trash}<span>删除类别</span></button>
-            <button class="icon-btn" data-action="close-theme" title="关闭">${icons.close}</button>
+            <button class="icon-btn" title="编辑" data-action="edit" data-id="${idea.id}">${icons.edit}</button>
+            <button class="icon-btn" title="删除" data-action="delete" data-id="${idea.id}">${icons.trash}</button>
+            <button class="icon-btn" data-action="close-idea" title="关闭">${icons.close}</button>
           </div>
         </div>
         <div class="theme-detail-body">
-          ${ideas.map(renderThemeIdeaDetail).join("")}
+          <section class="detail-section">
+            <div class="detail-section-head"><div><span class="section-kicker">REFERENCES</span><h3>参考照片与视频</h3></div><span>${referenceIds.length} 个</span></div>
+            ${renderDetailMediaGrid(referenceIds, idea.theme, "还没有参考素材")}
+          </section>
+          <section class="detail-section result-section">
+            <div class="detail-section-head"><div><span class="section-kicker">MY PHOTOS</span><h3>我的已拍作品</h3></div><span>${resultIds.length} 个</span></div>
+            ${
+              idea.status === "captured"
+                ? `<label class="upload-result-btn">${icons.plus}<span>添加已拍照片 / 视频</span><input id="result-media" data-idea-id="${idea.id}" type="file" accept="image/*,video/*" multiple /></label>`
+                : `<button class="captured-btn detail-capture-btn" data-action="mark-captured" data-id="${idea.id}">${icons.check}<span>标记为已拍</span></button>`
+            }
+            ${renderDetailMediaGrid(resultIds, idea.theme, idea.status === "captured" ? "把拍好的照片放进这里" : "完成拍摄后，可以上传自己的成片")}
+          </section>
+          <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.poseTags)}</div>
+          ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
         </div>
       </section>
     </div>
   `;
 }
 
-function renderThemeIdeaDetail(idea) {
-  const mediaIds = getIdeaMediaIds(idea);
+function renderDetailMediaGrid(ids, theme, emptyCopy) {
+  if (!ids.length) {
+    return `<div class="detail-no-media"><img src="./assets/camera-cat.png" alt="等待照片的小猫" /><span>${escapeHtml(emptyCopy)}</span></div>`;
+  }
   return `
-    <article class="theme-idea-detail">
-      <div class="detail-idea-head">
-        <div>
-          <h3>${escapeHtml(idea.concept || idea.theme)}</h3>
-          ${idea.specificPlace ? `<p>${escapeHtml(idea.specificPlace)}</p>` : ""}
-        </div>
-        <div class="detail-item-actions">
-          <button class="icon-btn" title="编辑" data-action="edit" data-id="${idea.id}">${icons.edit}</button>
-          <button class="icon-btn" title="删除" data-action="delete" data-id="${idea.id}">${icons.trash}</button>
-        </div>
-      </div>
-      ${
-        mediaIds.length
-          ? `<div class="detail-media-grid">${mediaIds.map((id) => `<div class="detail-media-item">${renderMedia(id, `${idea.theme}参考`)}</div>`).join("")}</div>`
-          : '<div class="detail-no-media"><img src="./assets/camera-cat.png" alt="等待参考的小猫" /><span>这个企划还没有添加照片或视频</span></div>'
-      }
-      <div class="detail-tags">
-        ${tagChips(idea.placeTypes, "sage")}
-        ${tagChips(idea.outfitTags, "sky")}
-        ${tagChips(idea.poseTags)}
-      </div>
-      ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
-    </article>
+    <div class="detail-media-grid">
+      ${ids.map((id) => `<button class="detail-media-item" data-action="open-viewer" data-media-id="${id}" title="点开查看">${renderMediaThumbnail(id, `${theme}素材`)}</button>`).join("")}
+    </div>
   `;
+}
+
+function renderMediaThumbnail(id, alt) {
+  const url = mediaUrl(id);
+  if (!url) return "";
+  if (url.includes("#video")) {
+    return `<video src="${url.replace("#video", "")}" muted playsinline preload="metadata" aria-label="${escapeHtml(alt)}"></video><span class="video-badge">视频</span>`;
+  }
+  return `<img src="${url}" alt="${escapeHtml(alt)}" />`;
+}
+
+function renderMediaViewer() {
+  if (!state.viewerMediaId) return "";
+  const url = mediaUrl(state.viewerMediaId);
+  if (!url) return "";
+  const isVideo = url.includes("#video");
+  return `
+    <div class="media-viewer-backdrop" data-action="close-viewer">
+      <div class="media-viewer" data-stop-close>
+        <div class="viewer-toolbar">
+          ${isVideo ? "" : '<button class="icon-btn" data-action="zoom-out" title="缩小">−</button><button class="icon-btn zoom-reset" data-action="zoom-reset" title="恢复原始大小">1:1</button><button class="icon-btn" data-action="zoom-in" title="放大">+</button>'}
+          <button class="icon-btn" data-action="close-viewer" title="关闭">${icons.close}</button>
+        </div>
+        <div class="viewer-stage">
+          ${isVideo ? `<video src="${url.replace("#video", "")}" controls autoplay playsinline></video>` : `<img src="${url}" alt="放大的照片" style="transform: scale(${state.viewerZoom})" />`}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderCapturedEmpty() {
+  return `<div class="captured-empty"><img src="./assets/camera-cat.png" alt="等待成片的小猫" /><div><h3>拍完的企划会来到这里</h3><p>点击企划里的“已拍”，再上传你真正拍好的照片。</p></div></div>`;
 }
 
 function renderFilters() {
@@ -682,6 +714,7 @@ function bindEvents() {
   app.onclick = handleClick;
   $("#idea-form")?.addEventListener("submit", handleSubmit);
   $("#media")?.addEventListener("change", handleMediaPreview);
+  $("#result-media")?.addEventListener("change", handleResultMediaUpload);
   document.querySelectorAll("[data-action='select-filter']").forEach((select) => {
     select.addEventListener("change", (event) => {
       state.filters[event.target.dataset.filter] = event.target.value;
@@ -704,12 +737,12 @@ function handleClick(event) {
     state.filters.theme = target.dataset.theme;
     render();
   }
-  if (action === "open-theme") {
-    state.viewingTheme = target.dataset.theme;
+  if (action === "open-idea") {
+    state.viewingIdeaId = target.dataset.id;
     render();
   }
-  if (action === "close-theme") {
-    state.viewingTheme = null;
+  if (action === "close-idea") {
+    state.viewingIdeaId = null;
     render();
   }
   if (action === "set-status") {
@@ -723,12 +756,33 @@ function handleClick(event) {
   }
   if (action === "edit") openForm(target.dataset.id);
   if (action === "delete") deleteIdea(target.dataset.id);
-  if (action === "delete-theme") deleteTheme(target.dataset.theme);
-  if (action === "toggle-status") toggleStatus(target.dataset.id);
+  if (action === "mark-captured") markCaptured(target.dataset.id);
+  if (action === "open-viewer") {
+    state.viewerMediaId = target.dataset.mediaId;
+    state.viewerZoom = 1;
+    render();
+  }
+  if (action === "close-viewer") {
+    state.viewerMediaId = null;
+    state.viewerZoom = 1;
+    render();
+  }
+  if (action === "zoom-in") {
+    state.viewerZoom = Math.min(4, state.viewerZoom + 0.25);
+    render();
+  }
+  if (action === "zoom-out") {
+    state.viewerZoom = Math.max(0.5, state.viewerZoom - 0.25);
+    render();
+  }
+  if (action === "zoom-reset") {
+    state.viewerZoom = 1;
+    render();
+  }
 }
 
 function openForm(id = "new") {
-  state.viewingTheme = null;
+  state.viewingIdeaId = null;
   state.editingId = id;
   state.selectedMediaFiles = [];
   state.selectedMediaUrls.forEach((url) => URL.revokeObjectURL(url.replace("#video", "")));
@@ -802,6 +856,7 @@ async function handleSubmit(event) {
     id: editing?.id || uid("idea"),
     imageId: mediaIds[0] || "",
     mediaIds,
+    resultMediaIds: editing?.resultMediaIds || [],
     theme,
     concept: String(form.get("concept") || "").trim(),
     outfitTags,
@@ -819,16 +874,48 @@ async function handleSubmit(event) {
   showToast(editing ? "已保存修改。" : "已记录新的拍照灵感。");
 }
 
-async function toggleStatus(id) {
+async function markCaptured(id) {
   const idea = state.ideas.find((item) => item.id === id);
   if (!idea) return;
   await putRecord(IDEA_STORE, {
     ...idea,
-    status: idea.status === "planned" ? "captured" : "planned",
+    status: "captured",
     updatedAt: new Date().toISOString(),
   });
   await loadData();
   render();
+  showToast("已移动到“已拍作品”。");
+}
+
+async function handleResultMediaUpload(event) {
+  const ideaId = event.target.dataset.ideaId;
+  const idea = state.ideas.find((item) => item.id === ideaId);
+  const files = [...(event.target.files || [])];
+  if (!idea || !files.length) return;
+
+  const now = new Date().toISOString();
+  const resultMediaIds = [...getResultMediaIds(idea)];
+  for (const file of files) {
+    const mediaId = uid("result");
+    resultMediaIds.push(mediaId);
+    await putRecord(IMAGE_STORE, {
+      id: mediaId,
+      blob: file,
+      mimeType: file.type,
+      createdAt: now,
+    });
+  }
+
+  await putRecord(IDEA_STORE, {
+    ...idea,
+    status: "captured",
+    resultMediaIds,
+    updatedAt: now,
+  });
+  await loadData();
+  state.viewingIdeaId = ideaId;
+  render();
+  showToast("已添加到你的已拍作品。");
 }
 
 async function deleteIdea(id) {
@@ -840,32 +927,14 @@ async function deleteIdea(id) {
   for (const mediaId of getIdeaMediaIds(idea)) {
     await deleteRecord(IMAGE_STORE, mediaId);
   }
-  await loadData();
-  if (state.viewingTheme && !state.ideas.some((item) => item.theme === state.viewingTheme)) {
-    state.viewingTheme = null;
+  for (const mediaId of getResultMediaIds(idea)) {
+    await deleteRecord(IMAGE_STORE, mediaId);
   }
+  await loadData();
+  if (state.viewingIdeaId === id) state.viewingIdeaId = null;
+  state.viewerMediaId = null;
   render();
   showToast("已删除。");
-}
-
-async function deleteTheme(theme) {
-  const ideas = state.ideas.filter((idea) => idea.theme === theme);
-  if (!ideas.length) return;
-  const ok = window.confirm(`删除“${theme}”类别吗？其中 ${ideas.length} 个企划和全部参考都会一起删除。`);
-  if (!ok) return;
-
-  for (const idea of ideas) {
-    await deleteRecord(IDEA_STORE, idea.id);
-    for (const mediaId of getIdeaMediaIds(idea)) {
-      await deleteRecord(IMAGE_STORE, mediaId);
-    }
-  }
-
-  state.viewingTheme = null;
-  if (state.filters.theme === theme) state.filters.theme = "全部";
-  await loadData();
-  render();
-  showToast("类别已删除。");
 }
 
 function showToast(message) {
