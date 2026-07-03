@@ -57,6 +57,7 @@ let state = {
     place: "",
   },
   editingId: null,
+  viewingTheme: null,
   selectedMediaFiles: [],
   selectedMediaUrls: [],
   toastTimer: null,
@@ -403,6 +404,7 @@ function render() {
       </div>
     </main>
 
+    ${renderThemeDetail()}
     ${renderDrawer()}
     <div class="toast" id="toast"></div>
   `;
@@ -414,9 +416,9 @@ function renderThemeCard(group) {
   const mediaIds = getIdeaMediaIds(group.cover);
   const count = group.ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
   return `
-    <button class="theme-card" data-action="filter-theme" data-theme="${escapeHtml(group.theme)}">
+    <button class="theme-card" data-action="open-theme" data-theme="${escapeHtml(group.theme)}">
       <div class="theme-cover">
-        ${renderMedia(mediaIds[0], `${group.theme}参考`)}
+        ${renderMedia(mediaIds[0], `${group.theme}参考`) || '<div class="no-media">等待添加参考</div>'}
         <span class="theme-count">${count} 个参考</span>
       </div>
       <div class="theme-body">
@@ -460,13 +462,68 @@ function renderIdeaCard(idea) {
 
 function renderMediaMosaic(idea) {
   const ids = getIdeaMediaIds(idea);
-  if (!ids.length) return "";
+  if (!ids.length) return '<div class="no-media">等待添加参考</div>';
   if (ids.length === 1) return renderMedia(ids[0], `${idea.theme}参考图`);
   const visible = ids.slice(0, 4);
   return `
     <div class="media-mosaic count-${visible.length}">
       ${visible.map((id) => `<div>${renderMedia(id, `${idea.theme}参考`)}</div>`).join("")}
     </div>
+  `;
+}
+
+function renderThemeDetail() {
+  if (!state.viewingTheme) return "";
+  const ideas = state.ideas.filter((idea) => idea.theme === state.viewingTheme);
+  const mediaTotal = ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
+  return `
+    <div class="drawer-backdrop theme-backdrop open" data-action="close-theme">
+      <section class="theme-detail" data-stop-close>
+        <div class="drawer-head">
+          <div>
+            <p class="eyebrow">COLLECTION</p>
+            <h2>${escapeHtml(state.viewingTheme)}</h2>
+            <p class="detail-summary">${ideas.length} 个企划 · ${mediaTotal} 个参考</p>
+          </div>
+          <div class="detail-head-actions">
+            <button class="danger-btn" data-action="delete-theme" data-theme="${escapeHtml(state.viewingTheme)}">${icons.trash}<span>删除类别</span></button>
+            <button class="icon-btn" data-action="close-theme" title="关闭">${icons.close}</button>
+          </div>
+        </div>
+        <div class="theme-detail-body">
+          ${ideas.map(renderThemeIdeaDetail).join("")}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+function renderThemeIdeaDetail(idea) {
+  const mediaIds = getIdeaMediaIds(idea);
+  return `
+    <article class="theme-idea-detail">
+      <div class="detail-idea-head">
+        <div>
+          <h3>${escapeHtml(idea.concept || idea.theme)}</h3>
+          ${idea.specificPlace ? `<p>${escapeHtml(idea.specificPlace)}</p>` : ""}
+        </div>
+        <div class="detail-item-actions">
+          <button class="icon-btn" title="编辑" data-action="edit" data-id="${idea.id}">${icons.edit}</button>
+          <button class="icon-btn" title="删除" data-action="delete" data-id="${idea.id}">${icons.trash}</button>
+        </div>
+      </div>
+      ${
+        mediaIds.length
+          ? `<div class="detail-media-grid">${mediaIds.map((id) => `<div class="detail-media-item">${renderMedia(id, `${idea.theme}参考`)}</div>`).join("")}</div>`
+          : '<div class="detail-no-media"><img src="./assets/camera-cat.png" alt="等待参考的小猫" /><span>这个企划还没有添加照片或视频</span></div>'
+      }
+      <div class="detail-tags">
+        ${tagChips(idea.placeTypes, "sage")}
+        ${tagChips(idea.outfitTags, "sky")}
+        ${tagChips(idea.poseTags)}
+      </div>
+      ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
+    </article>
   `;
 }
 
@@ -555,8 +612,8 @@ function renderDrawer() {
             ${previewItems.length ? renderPreviewItems(previewItems) : "<span>上传多张参考图，也可以加视频</span>"}
           </div>
           <div class="field">
-            <label for="media">参考图 / 视频${editing ? "（不选则保留，选择会追加）" : ""}</label>
-            <input id="media" name="media" type="file" accept="image/*,video/*" multiple ${editing ? "" : "required"} />
+            <label for="media">参考图 / 视频（可选）${editing ? " · 选择会追加" : ""}</label>
+            <input id="media" name="media" type="file" accept="image/*,video/*" multiple />
           </div>
           <div class="form-grid">
             <div class="field">
@@ -570,24 +627,24 @@ function renderDrawer() {
             </div>
           </div>
           <div class="field">
-            <label for="concept">具体想拍什么</label>
+            <label for="concept">具体想拍什么（可选）</label>
             <input id="concept" name="concept" value="${escapeHtml(editing?.concept || "")}" placeholder="例如 想拍某个角色 cosplay / 穿马面裙拍一组照片 / 云南漂流视频" />
           </div>
           <div class="field">
-            <label for="outfitTags">衣服/造型标签</label>
-            <input id="outfitTags" name="outfitTags" value="${escapeHtml(editing?.outfitTags.join("，") || "")}" placeholder="马面裙，假发，角色服，速干衣" required />
+            <label for="outfitTags">衣服/造型标签（可选）</label>
+            <input id="outfitTags" name="outfitTags" value="${escapeHtml(editing?.outfitTags.join("，") || "")}" placeholder="马面裙，假发，角色服，速干衣" />
             <span class="tag-help">用逗号、顿号或换行分隔。</span>
           </div>
           <div class="field">
-            <label for="poseTags">姿势/构图标签</label>
-            <input id="poseTags" name="poseTags" value="${escapeHtml(editing?.poseTags.join("，") || "")}" placeholder="御姐站姿，蹲姿，漂流视频，背影" required />
+            <label for="poseTags">姿势/构图标签（可选）</label>
+            <input id="poseTags" name="poseTags" value="${escapeHtml(editing?.poseTags.join("，") || "")}" placeholder="御姐站姿，蹲姿，漂流视频，背影" />
           </div>
           <div class="field">
-            <label for="placeTypes">适配地点类型</label>
-            <input id="placeTypes" name="placeTypes" value="${escapeHtml(editing?.placeTypes.join("，") || "")}" placeholder="海边，咖啡厅，漫展，酒店，漂流" required />
+            <label for="placeTypes">适配地点类型（可选）</label>
+            <input id="placeTypes" name="placeTypes" value="${escapeHtml(editing?.placeTypes.join("，") || "")}" placeholder="海边，咖啡厅，漫展，酒店，漂流" />
           </div>
           <div class="field">
-            <label for="note">备注</label>
+            <label for="note">备注（可选）</label>
             <textarea id="note" name="note" placeholder="光线、氛围、拍摄小提醒">${escapeHtml(editing?.note || "")}</textarea>
           </div>
           <div class="form-actions">
@@ -637,14 +694,22 @@ function handleClick(event) {
   const target = event.target.closest("[data-action]");
   const closeStop = event.target.closest("[data-stop-close]");
   if (!target) return;
-  if (closeStop && target.classList.contains("drawer-backdrop")) return;
+  if (closeStop && target === closeStop.closest("[data-action]")) return;
   const action = target.dataset.action;
 
   if (target.dataset.stopClose !== undefined) return;
   if (action === "open-form") openForm();
   if (action === "close-form") closeForm();
-  if (action === "filter-theme" || action === "set-theme") {
+  if (action === "set-theme") {
     state.filters.theme = target.dataset.theme;
+    render();
+  }
+  if (action === "open-theme") {
+    state.viewingTheme = target.dataset.theme;
+    render();
+  }
+  if (action === "close-theme") {
+    state.viewingTheme = null;
     render();
   }
   if (action === "set-status") {
@@ -654,13 +719,16 @@ function handleClick(event) {
   if (action === "clear-filters") {
     state.filters = { theme: "全部", status: "all", outfit: "", pose: "", place: "" };
     render();
+    showToast("筛选已清空。");
   }
   if (action === "edit") openForm(target.dataset.id);
   if (action === "delete") deleteIdea(target.dataset.id);
+  if (action === "delete-theme") deleteTheme(target.dataset.theme);
   if (action === "toggle-status") toggleStatus(target.dataset.id);
 }
 
 function openForm(id = "new") {
+  state.viewingTheme = null;
   state.editingId = id;
   state.selectedMediaFiles = [];
   state.selectedMediaUrls.forEach((url) => URL.revokeObjectURL(url.replace("#video", "")));
@@ -713,8 +781,8 @@ async function handleSubmit(event) {
   const poseTags = parseTags(String(form.get("poseTags") || ""));
   const placeTypes = parseTags(String(form.get("placeTypes") || ""));
 
-  if (!theme || !outfitTags.length || !poseTags.length || !placeTypes.length) {
-    showToast("请把主题、衣服、姿势和地点类型填完整。");
+  if (!theme) {
+    showToast("请填写想拍类别 / 风格主题。");
     return;
   }
 
@@ -730,14 +798,9 @@ async function handleSubmit(event) {
     });
   }
 
-  if (!mediaIds.length) {
-    showToast("请先上传至少一个参考图或视频。");
-    return;
-  }
-
   await putRecord(IDEA_STORE, {
     id: editing?.id || uid("idea"),
-    imageId: mediaIds[0],
+    imageId: mediaIds[0] || "",
     mediaIds,
     theme,
     concept: String(form.get("concept") || "").trim(),
@@ -778,8 +841,31 @@ async function deleteIdea(id) {
     await deleteRecord(IMAGE_STORE, mediaId);
   }
   await loadData();
+  if (state.viewingTheme && !state.ideas.some((item) => item.theme === state.viewingTheme)) {
+    state.viewingTheme = null;
+  }
   render();
   showToast("已删除。");
+}
+
+async function deleteTheme(theme) {
+  const ideas = state.ideas.filter((idea) => idea.theme === theme);
+  if (!ideas.length) return;
+  const ok = window.confirm(`删除“${theme}”类别吗？其中 ${ideas.length} 个企划和全部参考都会一起删除。`);
+  if (!ok) return;
+
+  for (const idea of ideas) {
+    await deleteRecord(IDEA_STORE, idea.id);
+    for (const mediaId of getIdeaMediaIds(idea)) {
+      await deleteRecord(IMAGE_STORE, mediaId);
+    }
+  }
+
+  state.viewingTheme = null;
+  if (state.filters.theme === theme) state.filters.theme = "全部";
+  await loadData();
+  render();
+  showToast("类别已删除。");
 }
 
 function showToast(message) {
