@@ -21,44 +21,44 @@ function loadSettings() {
 
 const seedIdeas = [
   {
-    theme: "马面裙国风写真",
-    concept: "穿马面裙拍一组有力量感但不板正的国风照片",
-    outfitTags: ["马面裙", "披帛", "发簪"],
-    poseTags: ["站姿", "回头", "手扶发簪"],
-    placeTypes: ["古镇", "园林", "红墙"],
-    note: "可以收集不同站姿、走动和裙摆展开的参考图。",
-    status: "planned",
-    palette: ["#9d3f35", "#283a34", "#dfc29a", "#f6eee3"],
-  },
-  {
-    theme: "角色 cosplay",
-    concept: "某个角色的 cosplay 企划，先收服装、表情和动作参考",
-    outfitTags: ["假发", "角色服", "道具"],
-    poseTags: ["御姐站姿", "蹲姿", "眼神特写"],
-    placeTypes: ["漫展", "酒店", "摄影棚"],
-    note: "同一个角色可以持续加很多图，后面按姿势筛。",
-    status: "planned",
-    palette: ["#7d5c8c", "#2d2b3d", "#e0c0d6", "#f5f0f6"],
-  },
-  {
-    theme: "云南暑假旅行",
-    concept: "回国去云南玩，想拍漂流视频和自然感照片",
-    outfitTags: ["速干衣", "防晒帽", "运动凉鞋"],
-    poseTags: ["漂流视频", "背影", "广角环境"],
-    placeTypes: ["漂流", "古城", "山谷"],
-    note: "视频参考也可以放进来，提前想好机位和动作。",
-    status: "planned",
-    palette: ["#7bb7b2", "#315c65", "#e5ca76", "#f5f0df"],
-  },
-  {
     theme: "秋冬氛围",
-    concept: "大衣围巾的日常感照片",
+    concept: "穿大衣和围巾拍一组自然温暖的日常照片",
     outfitTags: ["大衣", "围巾", "短靴"],
-    poseTags: ["坐姿", "捧脸", "看窗外"],
-    placeTypes: ["书店", "落叶路", "酒店房间"],
-    note: "暖色灯光、窗边或木质背景会更有故事感。",
-    status: "captured",
+    poseTags: ["走路", "回头", "捧热饮"],
+    placeTypes: ["落叶街道", "公园", "街角"],
+    note: "傍晚的暖光很好看，也可以拍围巾和手部细节。",
+    status: "planned",
     palette: ["#8d533a", "#d6a15f", "#efe1cc", "#4e5a4e"],
+  },
+  {
+    theme: "日落海边",
+    concept: "在太阳快落下的时候拍海风、剪影和散步的画面",
+    outfitTags: ["白裙", "薄外套", "草帽"],
+    poseTags: ["背影", "侧脸", "走向海边"],
+    placeTypes: ["海边", "沙滩", "礁石"],
+    note: "提前看日落时间，逆光时可以拍轮廓和头发被风吹起的瞬间。",
+    status: "planned",
+    palette: ["#d77a66", "#6f8ea3", "#f1c47b", "#f8ead8"],
+  },
+  {
+    theme: "咖啡厅日常",
+    concept: "记录喝咖啡、看窗外和随手翻书的松弛感",
+    outfitTags: ["针织衫", "衬衫", "托特包"],
+    poseTags: ["托腮", "看窗外", "手拿咖啡"],
+    placeTypes: ["咖啡厅", "窗边", "露台"],
+    note: "选靠窗的位置，桌上的咖啡、书和甜点也可以拍细节。",
+    status: "planned",
+    palette: ["#7f6657", "#a98c72", "#d8c4ad", "#f5eee6"],
+  },
+  {
+    theme: "图书馆安静感",
+    concept: "在书架和阅读区拍安静、专注的日常照片",
+    outfitTags: ["白衬衫", "针织背心", "眼镜"],
+    poseTags: ["低头看书", "书架侧影", "坐姿"],
+    placeTypes: ["图书馆", "书店", "阅读区"],
+    note: "尽量不用闪光灯，适合拍手翻书、书架之间和桌面光影。",
+    status: "planned",
+    palette: ["#61736b", "#9ca89f", "#d8d3c5", "#f4f1e8"],
   },
 ];
 
@@ -381,13 +381,37 @@ async function seedIfNeeded() {
   }
 }
 
+async function migrateEverydaySeedContent() {
+  const replacements = new Map([
+    ["穿马面裙拍一组有力量感但不板正的国风照片", seedIdeas[0]],
+    ["某个角色的 cosplay 企划，先收服装、表情和动作参考", seedIdeas[1]],
+    ["回国去云南玩，想拍漂流视频和自然感照片", seedIdeas[2]],
+    ["大衣围巾的日常感照片", seedIdeas[3]],
+  ]);
+  const ideas = await getAll(IDEA_STORE);
+  for (const idea of ideas) {
+    const replacement = replacements.get(idea.concept);
+    if (!replacement) continue;
+    await putRecord(IDEA_STORE, {
+      ...idea,
+      theme: replacement.theme,
+      concept: replacement.concept,
+      outfitTags: replacement.outfitTags,
+      poseTags: replacement.poseTags,
+      placeTypes: replacement.placeTypes,
+      note: replacement.note,
+      seedContentVersion: 2,
+    });
+  }
+}
+
 async function migrateSeedImages() {
   const ideas = await getAll(IDEA_STORE);
   const catByTheme = {
-    "马面裙国风写真": "./assets/cat-planning.png",
-    "角色 cosplay": "./assets/cat-camera.png",
-    "云南暑假旅行": "./assets/cat-winter.png",
-    "秋冬氛围": "./assets/cat-happy.png",
+    "秋冬氛围": "./assets/cat-winter.png",
+    "日落海边": "./assets/cat-happy.png",
+    "咖啡厅日常": "./assets/cat-camera.png",
+    "图书馆安静感": "./assets/cat-planning.png",
   };
 
   for (const idea of ideas) {
@@ -1200,6 +1224,7 @@ function showToast(message) {
 async function init() {
   try {
     await seedIfNeeded();
+    await migrateEverydaySeedContent();
     await migrateSeedImages();
     await loadData();
     render();
