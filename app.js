@@ -272,6 +272,32 @@ async function seedIfNeeded() {
   }
 }
 
+async function migrateSeedImages() {
+  const ideas = await getAll(IDEA_STORE);
+  const catByTheme = {
+    "马面裙国风写真": "./assets/cat-planning.png",
+    "角色 cosplay": "./assets/cat-camera.png",
+    "云南暑假旅行": "./assets/cat-winter.png",
+    "秋冬氛围": "./assets/cat-happy.png",
+  };
+
+  for (const idea of ideas) {
+    const imageId = idea.imageId || idea.mediaIds?.[0];
+    const assetPath = catByTheme[idea.theme];
+    if (!imageId?.startsWith("image-") || !assetPath || idea.seedCatMigrated) continue;
+
+    const response = await fetch(assetPath);
+    const blob = await response.blob();
+    await putRecord(IMAGE_STORE, {
+      id: imageId,
+      blob,
+      mimeType: "image/png",
+      createdAt: idea.createdAt || new Date().toISOString(),
+    });
+    await putRecord(IDEA_STORE, { ...idea, seedCatMigrated: true });
+  }
+}
+
 async function loadData() {
   for (const url of state.mediaUrls.values()) URL.revokeObjectURL(url.replace("#video", ""));
   state.mediaUrls = new Map();
@@ -292,9 +318,8 @@ async function loadData() {
 
 function getFilteredIdeas() {
   return state.ideas.filter((idea) => {
-    const { theme, status, outfit, pose, place } = state.filters;
+    const { theme, outfit, pose, place } = state.filters;
     if (theme !== "全部" && idea.theme !== theme) return false;
-    if (status !== "all" && idea.status !== status) return false;
     if (outfit && !idea.outfitTags.includes(outfit)) return false;
     if (pose && !idea.poseTags.includes(pose)) return false;
     if (place && !idea.placeTypes.includes(place)) return false;
@@ -347,7 +372,7 @@ function render() {
     <main class="shell">
       <header class="topbar">
         <div class="brand">
-          <div class="brand-mark"><img src="./assets/camera-cat.png" alt="拍照小猫" /></div>
+          <div class="brand-mark"><img src="./assets/cat-planning.png" alt="计划拍摄的小猫" /></div>
           <div class="brand-copy">
             <p class="eyebrow">MIAO'S PHOTO NOTES</p>
             <h1>拍照灵感搭配库</h1>
@@ -366,7 +391,7 @@ function render() {
         </div>
         <div class="hero-side">
           <div class="cat-note">今天想拍什么？</div>
-          <img class="hero-cat" src="./assets/camera-cat.png" alt="抱着相机的小猫" />
+          <img class="hero-cat" src="./assets/cat-camera.png" alt="抱着相机的小猫" />
           <div class="hero-stats">
             <div class="stat"><strong>${state.ideas.length}</strong><span>企划</span></div>
             <div class="stat"><strong>${plannedCount}/${capturedCount}</strong><span>想拍 / 已拍</span></div>
@@ -383,12 +408,13 @@ function render() {
                 <h2>拍摄企划</h2>
                 <p>${plannedIdeas.length} 个还想拍的计划。</p>
               </div>
+              <img class="section-cat section-cat-planning" src="./assets/cat-planning.png" alt="正在做计划的小猫" />
               <button class="text-btn" data-action="clear-filters">清空筛选</button>
             </div>
             ${
               plannedIdeas.length
                 ? `<div class="ideas-grid">${plannedIdeas.map(renderIdeaCard).join("")}</div>`
-                : renderEmpty("还没有待拍企划", "记录一个想法，之后就照着参考去拍。")
+                : ""
             }
           </section>
 
@@ -399,6 +425,7 @@ function render() {
                 <h2>已拍作品</h2>
                 <p>${capturedIdeas.length} 个已经完成的企划。</p>
               </div>
+              <img class="section-cat" src="./assets/cat-happy.png" alt="完成拍摄的小猫" />
             </div>
             ${
               capturedIdeas.length
@@ -451,7 +478,7 @@ function renderIdeaCard(idea) {
           ${
             idea.status === "planned"
               ? `<button class="captured-btn" data-action="mark-captured" data-id="${idea.id}">${icons.check}<span>已拍</span></button>`
-              : `<button class="ghost-btn" data-action="open-idea" data-id="${idea.id}">${icons.camera}<span>查看成片</span></button>`
+              : `<button class="text-btn" data-action="mark-planned" data-id="${idea.id}"><span>移回想拍</span></button><button class="ghost-btn" data-action="open-idea" data-id="${idea.id}">${icons.camera}<span>查看成片</span></button>`
           }
         </div>
       </div>
@@ -499,7 +526,7 @@ function renderIdeaDetail() {
             <div class="detail-section-head"><div><span class="section-kicker">MY PHOTOS</span><h3>我的已拍作品</h3></div><span>${resultIds.length} 个</span></div>
             ${
               idea.status === "captured"
-                ? `<label class="upload-result-btn">${icons.plus}<span>添加已拍照片 / 视频</span><input id="result-media" data-idea-id="${idea.id}" type="file" accept="image/*,video/*" multiple /></label>`
+                ? `<div class="result-actions"><button class="text-btn" data-action="mark-planned" data-id="${idea.id}">移回想拍</button><label class="upload-result-btn">${icons.plus}<span>添加已拍照片 / 视频</span><input id="result-media" data-idea-id="${idea.id}" type="file" accept="image/*,video/*" multiple /></label></div>`
                 : `<button class="captured-btn detail-capture-btn" data-action="mark-captured" data-id="${idea.id}">${icons.check}<span>标记为已拍</span></button>`
             }
             ${renderDetailMediaGrid(resultIds, idea.theme, idea.status === "captured" ? "把拍好的照片放进这里" : "完成拍摄后，可以上传自己的成片")}
@@ -514,7 +541,7 @@ function renderIdeaDetail() {
 
 function renderDetailMediaGrid(ids, theme, emptyCopy) {
   if (!ids.length) {
-    return `<div class="detail-no-media"><img src="./assets/camera-cat.png" alt="等待照片的小猫" /><span>${escapeHtml(emptyCopy)}</span></div>`;
+    return `<div class="detail-no-media"><img src="./assets/cat-sad.png" alt="等待照片的小猫" /><span>${escapeHtml(emptyCopy)}</span></div>`;
   }
   return `
     <div class="detail-media-grid">
@@ -553,7 +580,7 @@ function renderMediaViewer() {
 }
 
 function renderCapturedEmpty() {
-  return `<div class="captured-empty"><img src="./assets/camera-cat.png" alt="等待成片的小猫" /><div><h3>拍完的企划会来到这里</h3><p>点击企划里的“已拍”，再上传你真正拍好的照片。</p></div></div>`;
+  return `<div class="captured-empty"><img src="./assets/cat-happy.png" alt="等待成片的小猫" /><div><h3>拍完的企划会来到这里</h3><p>点击企划里的“已拍”，再上传你真正拍好的照片。</p></div></div>`;
 }
 
 function renderFilters() {
@@ -565,6 +592,7 @@ function renderFilters() {
     .join("");
   return `
     <aside class="panel filters">
+      <img class="filter-cat" src="./assets/cat-winter.png" alt="筛选灵感的小猫" />
       <h2>${icons.filter}筛选</h2>
       <div class="filter-block">
         <span class="filter-label">状态</span>
@@ -605,7 +633,7 @@ function renderSelectFilter(key, label, values) {
 function renderEmpty(title, copy) {
   return `
     <div class="empty-state">
-      <img src="./assets/camera-cat.png" alt="等待灵感的小猫" />
+      <img src="./assets/cat-sad.png" alt="等待灵感的小猫" />
       <h3>${escapeHtml(title)}</h3>
       <p>${escapeHtml(copy)}</p>
       <button class="primary-btn" data-action="open-form">${icons.plus}<span>新增灵感</span></button>
@@ -756,6 +784,7 @@ function handleClick(event) {
   if (action === "edit") openForm(target.dataset.id);
   if (action === "delete") deleteIdea(target.dataset.id);
   if (action === "mark-captured") markCaptured(target.dataset.id);
+  if (action === "mark-planned") markPlanned(target.dataset.id);
   if (action === "open-viewer") {
     state.viewerMediaId = target.dataset.mediaId;
     state.viewerZoom = 1;
@@ -892,6 +921,21 @@ async function markCaptured(id) {
   showToast("已移动到“已拍作品”。");
 }
 
+async function markPlanned(id) {
+  const idea = state.ideas.find((item) => item.id === id);
+  if (!idea) return;
+  await putRecord(IDEA_STORE, {
+    ...idea,
+    status: "planned",
+    updatedAt: new Date().toISOString(),
+  });
+  await loadData();
+  state.viewingIdeaId = null;
+  render();
+  scrollToSection("planned-section");
+  showToast("已移回“拍摄企划”。");
+}
+
 async function handleResultMediaUpload(event) {
   const ideaId = event.target.dataset.ideaId;
   const idea = state.ideas.find((item) => item.id === ideaId);
@@ -954,6 +998,7 @@ function showToast(message) {
 async function init() {
   try {
     await seedIfNeeded();
+    await migrateSeedImages();
     await loadData();
     render();
   } catch (error) {
