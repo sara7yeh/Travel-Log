@@ -1,0 +1,805 @@
+const DB_NAME = "shot-style-library";
+const DB_VERSION = 1;
+const IDEA_STORE = "ideas";
+const IMAGE_STORE = "images";
+
+const seedIdeas = [
+  {
+    theme: "马面裙国风写真",
+    concept: "穿马面裙拍一组有力量感但不板正的国风照片",
+    outfitTags: ["马面裙", "披帛", "发簪"],
+    poseTags: ["站姿", "回头", "手扶发簪"],
+    placeTypes: ["古镇", "园林", "红墙"],
+    note: "可以收集不同站姿、走动和裙摆展开的参考图。",
+    status: "planned",
+    palette: ["#9d3f35", "#283a34", "#dfc29a", "#f6eee3"],
+  },
+  {
+    theme: "角色 cosplay",
+    concept: "某个角色的 cosplay 企划，先收服装、表情和动作参考",
+    outfitTags: ["假发", "角色服", "道具"],
+    poseTags: ["御姐站姿", "蹲姿", "眼神特写"],
+    placeTypes: ["漫展", "酒店", "摄影棚"],
+    note: "同一个角色可以持续加很多图，后面按姿势筛。",
+    status: "planned",
+    palette: ["#7d5c8c", "#2d2b3d", "#e0c0d6", "#f5f0f6"],
+  },
+  {
+    theme: "云南暑假旅行",
+    concept: "回国去云南玩，想拍漂流视频和自然感照片",
+    outfitTags: ["速干衣", "防晒帽", "运动凉鞋"],
+    poseTags: ["漂流视频", "背影", "广角环境"],
+    placeTypes: ["漂流", "古城", "山谷"],
+    note: "视频参考也可以放进来，提前想好机位和动作。",
+    status: "planned",
+    palette: ["#7bb7b2", "#315c65", "#e5ca76", "#f5f0df"],
+  },
+  {
+    theme: "秋冬氛围",
+    concept: "大衣围巾的日常感照片",
+    outfitTags: ["大衣", "围巾", "短靴"],
+    poseTags: ["坐姿", "捧脸", "看窗外"],
+    placeTypes: ["书店", "落叶路", "酒店房间"],
+    note: "暖色灯光、窗边或木质背景会更有故事感。",
+    status: "captured",
+    palette: ["#8d533a", "#d6a15f", "#efe1cc", "#4e5a4e"],
+  },
+];
+
+let state = {
+  ideas: [],
+  mediaUrls: new Map(),
+  filters: {
+    theme: "全部",
+    status: "all",
+    outfit: "",
+    pose: "",
+    place: "",
+  },
+  editingId: null,
+  selectedMediaFiles: [],
+  selectedMediaUrls: [],
+  toastTimer: null,
+};
+
+const $ = (selector) => document.querySelector(selector);
+const app = $("#app");
+
+const icons = {
+  camera:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3Z"/><circle cx="12" cy="13" r="3"/></svg>',
+  plus:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>',
+  close:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  edit:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  trash:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>',
+  check:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m20 6-11 11-5-5"/></svg>',
+  filter:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.5V20l4 2v-9.5Z"/></svg>',
+};
+
+function openDb() {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(IDEA_STORE)) {
+        db.createObjectStore(IDEA_STORE, { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains(IMAGE_STORE)) {
+        db.createObjectStore(IMAGE_STORE, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function withStore(storeName, mode, callback) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, mode);
+    const store = tx.objectStore(storeName);
+    const result = callback(store);
+    tx.oncomplete = () => {
+      db.close();
+      resolve(result);
+    };
+    tx.onerror = () => {
+      db.close();
+      reject(tx.error);
+    };
+  });
+}
+
+async function getAll(storeName) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeName, "readonly");
+    const request = tx.objectStore(storeName).getAll();
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    tx.oncomplete = () => db.close();
+  });
+}
+
+const putRecord = (storeName, record) =>
+  withStore(storeName, "readwrite", (store) => store.put(record));
+
+const deleteRecord = (storeName, id) =>
+  withStore(storeName, "readwrite", (store) => store.delete(id));
+
+function uid(prefix) {
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function parseTags(value) {
+  return value
+    .split(/[,，、\n]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+}
+
+function unique(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function escapeHtml(value = "") {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function makeCanvasImage(seed) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 900;
+  canvas.height = 1200;
+  const ctx = canvas.getContext("2d");
+  const colors = seed.palette;
+
+  const gradient = ctx.createLinearGradient(0, 0, 900, 1200);
+  gradient.addColorStop(0, colors[0]);
+  gradient.addColorStop(0.45, colors[1]);
+  gradient.addColorStop(1, colors[2]);
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, 900, 1200);
+
+  ctx.fillStyle = "rgba(255, 252, 244, 0.72)";
+  ctx.fillRect(92, 94, 716, 1012);
+  ctx.fillStyle = colors[3];
+  ctx.fillRect(128, 130, 644, 940);
+
+  ctx.fillStyle = "rgba(24, 22, 20, 0.18)";
+  ctx.fillRect(0, 780, 900, 420);
+
+  ctx.fillStyle = "rgba(255, 255, 255, 0.48)";
+  ctx.beginPath();
+  ctx.ellipse(450, 440, 185, 250, 0.08, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(35, 32, 29, 0.5)";
+  ctx.beginPath();
+  ctx.ellipse(450, 348, 74, 88, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(356, 450, 188, 330);
+  ctx.beginPath();
+  ctx.moveTo(356, 500);
+  ctx.lineTo(246, 705);
+  ctx.lineTo(336, 738);
+  ctx.lineTo(430, 540);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(544, 500);
+  ctx.lineTo(660, 710);
+  ctx.lineTo(570, 742);
+  ctx.lineTo(470, 540);
+  ctx.fill();
+
+  ctx.fillStyle = "rgba(255, 253, 249, 0.92)";
+  ctx.font = "700 54px system-ui, sans-serif";
+  ctx.fillText(seed.theme, 80, 1040);
+  ctx.font = "32px system-ui, sans-serif";
+  ctx.fillText(seed.placeTypes.slice(0, 2).join(" / "), 80, 1094);
+
+  return new Promise((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/jpeg", 0.9);
+  });
+}
+
+function getIdeaMediaIds(idea) {
+  if (Array.isArray(idea.mediaIds) && idea.mediaIds.length) return idea.mediaIds;
+  if (idea.imageId) return [idea.imageId];
+  return [];
+}
+
+function mediaUrl(id) {
+  return state.mediaUrls.get(id) || "";
+}
+
+function renderMedia(id, alt, className = "") {
+  const url = mediaUrl(id);
+  if (!url) return "";
+  const isVideo = url.includes("#video");
+  if (isVideo) {
+    return `<video class="${className}" src="${url.replace("#video", "")}" muted loop playsinline controls aria-label="${escapeHtml(alt)}"></video>`;
+  }
+  return `<img class="${className}" src="${url}" alt="${escapeHtml(alt)}" />`;
+}
+
+async function seedIfNeeded() {
+  const existing = await getAll(IDEA_STORE);
+  if (existing.length > 0) return;
+
+  for (const item of seedIdeas) {
+    const now = new Date().toISOString();
+    const imageId = uid("image");
+    const blob = await makeCanvasImage(item);
+    await putRecord(IMAGE_STORE, {
+      id: imageId,
+      blob,
+      mimeType: "image/jpeg",
+      createdAt: now,
+    });
+    await putRecord(IDEA_STORE, {
+      id: uid("idea"),
+      imageId,
+      mediaIds: [imageId],
+      theme: item.theme,
+      concept: item.concept,
+      outfitTags: item.outfitTags,
+      poseTags: item.poseTags,
+      placeTypes: item.placeTypes,
+      specificPlace: "",
+      note: item.note,
+      status: item.status,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+}
+
+async function loadData() {
+  for (const url of state.mediaUrls.values()) URL.revokeObjectURL(url.replace("#video", ""));
+  state.mediaUrls = new Map();
+  const [ideas, images] = await Promise.all([getAll(IDEA_STORE), getAll(IMAGE_STORE)]);
+  images.forEach((image) => {
+    const suffix = image.mimeType?.startsWith("video/") ? "#video" : "";
+    state.mediaUrls.set(image.id, `${URL.createObjectURL(image.blob)}${suffix}`);
+  });
+  state.ideas = ideas
+    .map((idea) => ({
+      ...idea,
+      mediaIds: getIdeaMediaIds(idea),
+      concept: idea.concept || "",
+    }))
+    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+function getFilteredIdeas() {
+  return state.ideas.filter((idea) => {
+    const { theme, status, outfit, pose, place } = state.filters;
+    if (theme !== "全部" && idea.theme !== theme) return false;
+    if (status !== "all" && idea.status !== status) return false;
+    if (outfit && !idea.outfitTags.includes(outfit)) return false;
+    if (pose && !idea.poseTags.includes(pose)) return false;
+    if (place && !idea.placeTypes.includes(place)) return false;
+    return true;
+  });
+}
+
+function getThemeGroups() {
+  const groups = new Map();
+  state.ideas.forEach((idea) => {
+    if (!groups.has(idea.theme)) {
+      groups.set(idea.theme, []);
+    }
+    groups.get(idea.theme).push(idea);
+  });
+  return [...groups.entries()]
+    .map(([theme, ideas]) => ({
+      theme,
+      ideas,
+      cover: ideas[0],
+      placeTypes: unique(ideas.flatMap((idea) => idea.placeTypes)).slice(0, 4),
+      outfitTags: unique(ideas.flatMap((idea) => idea.outfitTags)).slice(0, 4),
+    }))
+    .sort((a, b) => b.ideas.length - a.ideas.length || a.theme.localeCompare(b.theme));
+}
+
+function optionsFor(key) {
+  const values = unique(state.ideas.flatMap((idea) => idea[key] || []));
+  return values.sort((a, b) => a.localeCompare(b, "zh-CN"));
+}
+
+function themes() {
+  return unique(state.ideas.map((idea) => idea.theme)).sort((a, b) =>
+    a.localeCompare(b, "zh-CN"),
+  );
+}
+
+function tagChips(tags, className = "") {
+  return tags.map((tag) => `<span class="chip ${className}">${escapeHtml(tag)}</span>`).join("");
+}
+
+function render() {
+  const filtered = getFilteredIdeas();
+  const groups = getThemeGroups();
+  const plannedCount = state.ideas.filter((idea) => idea.status === "planned").length;
+  const capturedCount = state.ideas.filter((idea) => idea.status === "captured").length;
+  const mediaCount = state.ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
+
+  app.innerHTML = `
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="brand-mark"><img src="./assets/camera-cat.png" alt="拍照小猫" /></div>
+          <div class="brand-copy">
+            <p class="eyebrow">MIAO'S PHOTO NOTES</p>
+            <h1>拍照灵感搭配库</h1>
+          </div>
+        </div>
+        <button class="ghost-btn" data-action="open-form">${icons.plus}<span>新增灵感</span></button>
+      </header>
+
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="hero-kicker">今日份灵感</span>
+          <h2>把想拍的画面，<br />先悄悄藏进这里。</h2>
+          <p>下一次出发，会有好多好看的照片。</p>
+          <div>
+            <button class="primary-btn" data-action="open-form">${icons.plus}<span>记录一个新想法</span></button>
+          </div>
+        </div>
+        <div class="hero-side">
+          <div class="cat-note">今天想拍什么？</div>
+          <img class="hero-cat" src="./assets/camera-cat.png" alt="抱着相机的小猫" />
+          <div class="hero-stats">
+            <div class="stat"><strong>${mediaCount}</strong><span>参考</span></div>
+            <div class="stat"><strong>${groups.length}</strong><span>主题</span></div>
+            <div class="stat"><strong>${plannedCount}/${capturedCount}</strong><span>想拍 / 已拍</span></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="main-grid">
+        <section>
+          <div class="section-head">
+            <div>
+              <span class="section-kicker">COLLECTIONS</span>
+              <h2>想拍类别墙</h2>
+            </div>
+            <button class="text-btn" data-action="clear-filters">清空筛选</button>
+          </div>
+          ${
+            groups.length
+              ? `<div class="theme-grid">${groups.map(renderThemeCard).join("")}</div>`
+              : renderEmpty("还没有想拍类别", "先新增一个企划，类别墙会自动长出来。")
+          }
+
+          <section class="ideas-section">
+            <div class="section-head">
+              <div>
+                <span class="section-kicker">SHOT IDEAS</span>
+                <h2>拍摄企划</h2>
+                <p>${filtered.length} 条符合当前筛选。</p>
+              </div>
+            </div>
+            ${
+              filtered.length
+                ? `<div class="ideas-grid">${filtered.map(renderIdeaCard).join("")}</div>`
+                : renderEmpty("没有匹配的企划", "换一个标签，或者清空筛选再看看。")
+            }
+          </section>
+        </section>
+
+        ${renderFilters()}
+      </div>
+    </main>
+
+    ${renderDrawer()}
+    <div class="toast" id="toast"></div>
+  `;
+
+  bindEvents();
+}
+
+function renderThemeCard(group) {
+  const mediaIds = getIdeaMediaIds(group.cover);
+  const count = group.ideas.reduce((sum, idea) => sum + getIdeaMediaIds(idea).length, 0);
+  return `
+    <button class="theme-card" data-action="filter-theme" data-theme="${escapeHtml(group.theme)}">
+      <div class="theme-cover">
+        ${renderMedia(mediaIds[0], `${group.theme}参考`)}
+        <span class="theme-count">${count} 个参考</span>
+      </div>
+      <div class="theme-body">
+        <h3>${escapeHtml(group.theme)}</h3>
+        <div class="chip-row">${tagChips(group.placeTypes, "sage")}</div>
+        <div class="chip-row">${tagChips(group.outfitTags, "sky")}</div>
+      </div>
+    </button>
+  `;
+}
+
+function renderIdeaCard(idea) {
+  const mediaIds = getIdeaMediaIds(idea);
+  const statusLabel = idea.status === "captured" ? "已拍" : "想拍";
+  return `
+    <article class="idea-card">
+      <div class="idea-photo">
+        ${renderMediaMosaic(idea)}
+        <span class="status-pill">${statusLabel}</span>
+        <span class="media-count">${mediaIds.length} 个参考</span>
+        <div class="idea-actions">
+          <button class="icon-btn" title="切换状态" data-action="toggle-status" data-id="${idea.id}">${icons.check}</button>
+          <button class="icon-btn" title="编辑" data-action="edit" data-id="${idea.id}">${icons.edit}</button>
+          <button class="icon-btn" title="删除" data-action="delete" data-id="${idea.id}">${icons.trash}</button>
+        </div>
+      </div>
+      <div class="idea-body">
+        <div class="idea-title">
+          <h3>${escapeHtml(idea.theme)}</h3>
+          <span class="idea-place">${escapeHtml(idea.specificPlace || "未定具体地点")}</span>
+        </div>
+        ${idea.concept ? `<p class="idea-concept">${escapeHtml(idea.concept)}</p>` : ""}
+        <div class="chip-row">${tagChips(idea.placeTypes, "sage")}</div>
+        <div class="chip-row">${tagChips(idea.outfitTags, "sky")}</div>
+        <div class="chip-row">${tagChips(idea.poseTags)}</div>
+        ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
+      </div>
+    </article>
+  `;
+}
+
+function renderMediaMosaic(idea) {
+  const ids = getIdeaMediaIds(idea);
+  if (!ids.length) return "";
+  if (ids.length === 1) return renderMedia(ids[0], `${idea.theme}参考图`);
+  const visible = ids.slice(0, 4);
+  return `
+    <div class="media-mosaic count-${visible.length}">
+      ${visible.map((id) => `<div>${renderMedia(id, `${idea.theme}参考`)}</div>`).join("")}
+    </div>
+  `;
+}
+
+function renderFilters() {
+  const themeButtons = ["全部", ...themes()]
+    .map(
+      (theme) =>
+        `<button class="chip ${state.filters.theme === theme ? "active" : ""}" data-action="set-theme" data-theme="${escapeHtml(theme)}">${escapeHtml(theme)}</button>`,
+    )
+    .join("");
+  return `
+    <aside class="panel filters">
+      <h2>${icons.filter}筛选</h2>
+      <div class="filter-block">
+        <span class="filter-label">状态</span>
+        <div class="segmented">
+          <button class="${state.filters.status === "all" ? "active" : ""}" data-action="set-status" data-status="all">全部</button>
+          <button class="${state.filters.status === "planned" ? "active" : ""}" data-action="set-status" data-status="planned">想拍</button>
+          <button class="${state.filters.status === "captured" ? "active" : ""}" data-action="set-status" data-status="captured">已拍</button>
+        </div>
+      </div>
+      <div class="filter-block">
+        <span class="filter-label">风格主题</span>
+        <div class="chip-row">${themeButtons}</div>
+      </div>
+      ${renderSelectFilter("outfit", "衣服造型", optionsFor("outfitTags"))}
+      ${renderSelectFilter("pose", "姿势构图", optionsFor("poseTags"))}
+      ${renderSelectFilter("place", "适配地点类型", optionsFor("placeTypes"))}
+    </aside>
+  `;
+}
+
+function renderSelectFilter(key, label, values) {
+  return `
+    <div class="field">
+      <label for="filter-${key}">${label}</label>
+      <select id="filter-${key}" data-action="select-filter" data-filter="${key}">
+        <option value="">全部</option>
+        ${values
+          .map(
+            (value) =>
+              `<option value="${escapeHtml(value)}" ${state.filters[key] === value ? "selected" : ""}>${escapeHtml(value)}</option>`,
+          )
+          .join("")}
+      </select>
+    </div>
+  `;
+}
+
+function renderEmpty(title, copy) {
+  return `
+    <div class="empty-state">
+      <img src="./assets/camera-cat.png" alt="等待灵感的小猫" />
+      <h3>${escapeHtml(title)}</h3>
+      <p>${escapeHtml(copy)}</p>
+      <button class="primary-btn" data-action="open-form">${icons.plus}<span>新增灵感</span></button>
+    </div>
+  `;
+}
+
+function renderDrawer() {
+  const editing = state.editingId ? state.ideas.find((idea) => idea.id === state.editingId) : null;
+  const editingMediaIds = editing ? getIdeaMediaIds(editing) : [];
+  const previewItems = [
+    ...editingMediaIds.map((id) => ({ id, url: mediaUrl(id), label: "已保存参考" })),
+    ...state.selectedMediaUrls.map((url, index) => ({ id: `new-${index}`, url, label: "新增参考" })),
+  ].filter((item) => item.url);
+  const themeOptions = ["", ...themes()]
+    .map(
+      (theme) =>
+        `<option value="${escapeHtml(theme)}" ${editing?.theme === theme ? "selected" : ""}>${theme ? escapeHtml(theme) : "选择已有主题或直接输入"}</option>`,
+    )
+    .join("");
+  return `
+    <div class="drawer-backdrop ${state.editingId === "new" || editing ? "open" : ""}" data-action="close-form">
+      <section class="drawer" data-stop-close>
+        <div class="drawer-head">
+          <div>
+            <p class="eyebrow">${editing ? "Edit inspiration" : "New inspiration"}</p>
+            <h2>${editing ? "编辑拍摄企划" : "新增拍摄企划"}</h2>
+          </div>
+          <button class="icon-btn" data-action="close-form" title="关闭">${icons.close}</button>
+        </div>
+        <form class="form" id="idea-form">
+          <div class="preview-frame ${previewItems.length ? "has-image" : ""}" id="image-preview">
+            ${previewItems.length ? renderPreviewItems(previewItems) : "<span>上传多张参考图，也可以加视频</span>"}
+          </div>
+          <div class="field">
+            <label for="media">参考图 / 视频${editing ? "（不选则保留，选择会追加）" : ""}</label>
+            <input id="media" name="media" type="file" accept="image/*,video/*" multiple ${editing ? "" : "required"} />
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="theme">想拍类别 / 风格主题</label>
+              <input id="theme" name="theme" list="theme-list" value="${escapeHtml(editing?.theme || "")}" placeholder="例如 角色 cosplay、马面裙写真" required />
+              <datalist id="theme-list">${themeOptions}</datalist>
+            </div>
+            <div class="field">
+              <label for="specificPlace">具体地点（可选）</label>
+              <input id="specificPlace" name="specificPlace" value="${escapeHtml(editing?.specificPlace || "")}" placeholder="例如 云南、某家咖啡厅" />
+            </div>
+          </div>
+          <div class="field">
+            <label for="concept">具体想拍什么</label>
+            <input id="concept" name="concept" value="${escapeHtml(editing?.concept || "")}" placeholder="例如 想拍某个角色 cosplay / 穿马面裙拍一组照片 / 云南漂流视频" />
+          </div>
+          <div class="field">
+            <label for="outfitTags">衣服/造型标签</label>
+            <input id="outfitTags" name="outfitTags" value="${escapeHtml(editing?.outfitTags.join("，") || "")}" placeholder="马面裙，假发，角色服，速干衣" required />
+            <span class="tag-help">用逗号、顿号或换行分隔。</span>
+          </div>
+          <div class="field">
+            <label for="poseTags">姿势/构图标签</label>
+            <input id="poseTags" name="poseTags" value="${escapeHtml(editing?.poseTags.join("，") || "")}" placeholder="御姐站姿，蹲姿，漂流视频，背影" required />
+          </div>
+          <div class="field">
+            <label for="placeTypes">适配地点类型</label>
+            <input id="placeTypes" name="placeTypes" value="${escapeHtml(editing?.placeTypes.join("，") || "")}" placeholder="海边，咖啡厅，漫展，酒店，漂流" required />
+          </div>
+          <div class="field">
+            <label for="note">备注</label>
+            <textarea id="note" name="note" placeholder="光线、氛围、拍摄小提醒">${escapeHtml(editing?.note || "")}</textarea>
+          </div>
+          <div class="form-actions">
+            <button type="button" class="ghost-btn" data-action="close-form">取消</button>
+            <button type="submit" class="primary-btn">${editing ? "保存修改" : "保存灵感"}</button>
+          </div>
+        </form>
+      </section>
+    </div>
+  `;
+}
+
+function renderPreviewItems(items) {
+  return `
+    <div class="preview-grid">
+      ${items
+        .map((item) => {
+          const isVideo = item.url.includes("#video") || item.url.startsWith("blob:");
+          const cleanUrl = item.url.replace("#video", "");
+          return `<div class="preview-tile">
+            ${
+              item.url.includes("#video")
+                ? `<video src="${cleanUrl}" muted playsinline controls></video>`
+                : `<img src="${cleanUrl}" alt="${escapeHtml(item.label)}" />`
+            }
+            <span>${escapeHtml(item.label)}</span>
+          </div>`;
+        })
+        .join("")}
+    </div>
+  `;
+}
+
+function bindEvents() {
+  app.onclick = handleClick;
+  $("#idea-form")?.addEventListener("submit", handleSubmit);
+  $("#media")?.addEventListener("change", handleMediaPreview);
+  document.querySelectorAll("[data-action='select-filter']").forEach((select) => {
+    select.addEventListener("change", (event) => {
+      state.filters[event.target.dataset.filter] = event.target.value;
+      render();
+    });
+  });
+}
+
+function handleClick(event) {
+  const target = event.target.closest("[data-action]");
+  const closeStop = event.target.closest("[data-stop-close]");
+  if (!target) return;
+  if (closeStop && target.classList.contains("drawer-backdrop")) return;
+  const action = target.dataset.action;
+
+  if (target.dataset.stopClose !== undefined) return;
+  if (action === "open-form") openForm();
+  if (action === "close-form") closeForm();
+  if (action === "filter-theme" || action === "set-theme") {
+    state.filters.theme = target.dataset.theme;
+    render();
+  }
+  if (action === "set-status") {
+    state.filters.status = target.dataset.status;
+    render();
+  }
+  if (action === "clear-filters") {
+    state.filters = { theme: "全部", status: "all", outfit: "", pose: "", place: "" };
+    render();
+  }
+  if (action === "edit") openForm(target.dataset.id);
+  if (action === "delete") deleteIdea(target.dataset.id);
+  if (action === "toggle-status") toggleStatus(target.dataset.id);
+}
+
+function openForm(id = "new") {
+  state.editingId = id;
+  state.selectedMediaFiles = [];
+  state.selectedMediaUrls.forEach((url) => URL.revokeObjectURL(url.replace("#video", "")));
+  state.selectedMediaUrls = [];
+  render();
+}
+
+function closeForm() {
+  state.editingId = null;
+  state.selectedMediaFiles = [];
+  state.selectedMediaUrls.forEach((url) => URL.revokeObjectURL(url.replace("#video", "")));
+  state.selectedMediaUrls = [];
+  render();
+}
+
+function handleMediaPreview(event) {
+  const files = [...(event.target.files || [])];
+  state.selectedMediaFiles = files;
+  state.selectedMediaUrls.forEach((url) => URL.revokeObjectURL(url.replace("#video", "")));
+  state.selectedMediaUrls = files.map((file) => {
+    const suffix = file.type.startsWith("video/") ? "#video" : "";
+    return `${URL.createObjectURL(file)}${suffix}`;
+  });
+  const frame = $("#image-preview");
+  if (frame) {
+    const editing = state.editingId ? state.ideas.find((idea) => idea.id === state.editingId) : null;
+    const editingItems = editing
+      ? getIdeaMediaIds(editing).map((id) => ({ id, url: mediaUrl(id), label: "已保存参考" }))
+      : [];
+    const newItems = state.selectedMediaUrls.map((url, index) => ({
+      id: `new-${index}`,
+      url,
+      label: "新增参考",
+    }));
+    const items = [...editingItems, ...newItems].filter((item) => item.url);
+    frame.classList.toggle("has-image", Boolean(items.length));
+    frame.innerHTML = items.length
+      ? renderPreviewItems(items)
+      : "<span>上传多张参考图，也可以加视频</span>";
+  }
+}
+
+async function handleSubmit(event) {
+  event.preventDefault();
+  const form = new FormData(event.target);
+  const editing = state.editingId !== "new" ? state.ideas.find((idea) => idea.id === state.editingId) : null;
+  const now = new Date().toISOString();
+  const theme = String(form.get("theme") || "").trim();
+  const outfitTags = parseTags(String(form.get("outfitTags") || ""));
+  const poseTags = parseTags(String(form.get("poseTags") || ""));
+  const placeTypes = parseTags(String(form.get("placeTypes") || ""));
+
+  if (!theme || !outfitTags.length || !poseTags.length || !placeTypes.length) {
+    showToast("请把主题、衣服、姿势和地点类型填完整。");
+    return;
+  }
+
+  const mediaIds = editing ? [...getIdeaMediaIds(editing)] : [];
+  for (const file of state.selectedMediaFiles) {
+    const mediaId = uid("media");
+    mediaIds.push(mediaId);
+    await putRecord(IMAGE_STORE, {
+      id: mediaId,
+      blob: file,
+      mimeType: file.type,
+      createdAt: now,
+    });
+  }
+
+  if (!mediaIds.length) {
+    showToast("请先上传至少一个参考图或视频。");
+    return;
+  }
+
+  await putRecord(IDEA_STORE, {
+    id: editing?.id || uid("idea"),
+    imageId: mediaIds[0],
+    mediaIds,
+    theme,
+    concept: String(form.get("concept") || "").trim(),
+    outfitTags,
+    poseTags,
+    placeTypes,
+    specificPlace: String(form.get("specificPlace") || "").trim(),
+    note: String(form.get("note") || "").trim(),
+    status: editing?.status || "planned",
+    createdAt: editing?.createdAt || now,
+    updatedAt: now,
+  });
+
+  await loadData();
+  closeForm();
+  showToast(editing ? "已保存修改。" : "已记录新的拍照灵感。");
+}
+
+async function toggleStatus(id) {
+  const idea = state.ideas.find((item) => item.id === id);
+  if (!idea) return;
+  await putRecord(IDEA_STORE, {
+    ...idea,
+    status: idea.status === "planned" ? "captured" : "planned",
+    updatedAt: new Date().toISOString(),
+  });
+  await loadData();
+  render();
+}
+
+async function deleteIdea(id) {
+  const idea = state.ideas.find((item) => item.id === id);
+  if (!idea) return;
+  const ok = window.confirm("删除这条拍摄企划吗？里面的参考图和视频也会一起从本机移除。");
+  if (!ok) return;
+  await deleteRecord(IDEA_STORE, id);
+  for (const mediaId of getIdeaMediaIds(idea)) {
+    await deleteRecord(IMAGE_STORE, mediaId);
+  }
+  await loadData();
+  render();
+  showToast("已删除。");
+}
+
+function showToast(message) {
+  const toast = $("#toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add("show");
+  window.clearTimeout(state.toastTimer);
+  state.toastTimer = window.setTimeout(() => toast.classList.remove("show"), 2200);
+}
+
+async function init() {
+  try {
+    await seedIfNeeded();
+    await loadData();
+    render();
+  } catch (error) {
+    app.innerHTML = renderEmpty("浏览器存储不可用", "请换一个现代浏览器，或允许本地网页保存数据。");
+    console.error(error);
+  }
+}
+
+init();
