@@ -33,3 +33,13 @@ http://127.0.0.1:5175/
 ```
 
 如需重新启动，可在 `app` 目录作为静态网页服务打开。
+
+## 公开网址
+
+推送到 GitHub 后，GitHub Actions 会自动部署网页：
+
+```text
+https://sara7yeh.github.io/Travel-Log/
+```
+
+首次部署需要在仓库的 `Settings > Pages` 中，将 `Build and deployment` 的来源设置为 `GitHub Actions`。本地的 `127.0.0.1` 地址只能在自己的电脑上访问，不能发送给其他人。
