@@ -76,6 +76,7 @@ let state = {
   viewingIdeaId: null,
   viewerMediaId: null,
   viewerZoom: 1,
+  sharingIdeaId: null,
   settingsOpen: false,
   settings: loadSettings(),
   selectedMediaFiles: [],
@@ -103,6 +104,8 @@ const icons = {
     '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 3H2l8 9.5V20l4 2v-9.5Z"/></svg>',
   settings:
     '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1.1V21a2 2 0 1 1-4 0v-.09A1.7 1.7 0 0 0 8.6 19.4a1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1.1-.4H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.6a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1.1V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.4 4.6a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.36.7.66.96.3.26.69.4 1.09.4H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.4 15Z"/></svg>',
+  share:
+    '<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 10.5 6.8-4M8.6 13.5l6.8 4"/></svg>',
 };
 
 const translations = {
@@ -139,6 +142,11 @@ const translations = {
   "取消": "Cancel",
   "保存修改": "Save changes",
   "保存灵感": "Save plan",
+  "分享": "Share",
+  "分享企划摘要": "Share plan summary",
+  "系统分享": "Share",
+  "复制文字": "Copy text",
+  "保存分享图片": "Save share image",
   "关闭": "Close",
   "上传多张参考图，也可以加视频": "Upload reference photos or videos",
   "参考图 / 视频（可选）": "References (optional)",
@@ -603,6 +611,7 @@ function render() {
     ${renderMediaViewer()}
     ${renderDrawer()}
     ${renderSettings()}
+    ${renderShareDialog()}
     <div class="toast" id="toast"></div>
   `;
 
@@ -623,6 +632,7 @@ function renderIdeaCard(idea) {
         <span class="status-pill">${statusLabel}</span>
         <span class="media-count">${displayIds.length} ${idea.status === "captured" && resultIds.length ? "张成片" : "个参考"}</span>
         <div class="idea-actions">
+          <button class="icon-btn" title="分享" data-action="open-share" data-id="${idea.id}">${icons.share}</button>
           <button class="icon-btn" title="编辑" data-action="edit" data-id="${idea.id}">${icons.edit}</button>
           <button class="icon-btn" title="删除" data-action="delete" data-id="${idea.id}">${icons.trash}</button>
         </div>
@@ -675,6 +685,7 @@ function renderIdeaDetail() {
             <p class="detail-summary">${escapeHtml(idea.concept || "拍摄企划详情")}</p>
           </div>
           <div class="detail-head-actions">
+            <button class="icon-btn" title="分享" data-action="open-share" data-id="${idea.id}">${icons.share}</button>
             <button class="icon-btn" title="编辑" data-action="edit" data-id="${idea.id}">${icons.edit}</button>
             <button class="icon-btn" title="删除" data-action="delete" data-id="${idea.id}">${icons.trash}</button>
             <button class="icon-btn" data-action="close-idea" title="关闭">${icons.close}</button>
@@ -800,6 +811,54 @@ function renderEmpty(title, copy) {
       <h3>${escapeHtml(title)}</h3>
       <p>${escapeHtml(copy)}</p>
       <button class="primary-btn" data-action="open-form">${icons.plus}<span>新增灵感</span></button>
+    </div>
+  `;
+}
+
+function getShareSummary(idea) {
+  const lines = [`拍照企划：${idea.theme}`];
+  if (idea.concept) lines.push(`想拍：${idea.concept}`);
+  if (idea.outfitTags.length) lines.push(`穿搭：${idea.outfitTags.join("、")}`);
+  if (idea.poseTags.length) lines.push(`姿势：${idea.poseTags.join("、")}`);
+  if (idea.placeTypes.length) lines.push(`地点：${idea.placeTypes.join("、")}`);
+  if (idea.specificPlace) lines.push(`具体地点：${idea.specificPlace}`);
+  if (idea.note) lines.push(`备注：${idea.note}`);
+  const mediaCount = getIdeaMediaIds(idea).length;
+  if (mediaCount) lines.push(`参考素材：${mediaCount} 个`);
+  lines.push("— 来自喵的拍照笔记");
+  return lines.join("\n");
+}
+
+function renderShareDialog() {
+  const idea = state.ideas.find((item) => item.id === state.sharingIdeaId);
+  if (!idea) return "";
+  const mediaIds = getIdeaMediaIds(idea);
+  return `
+    <div class="share-backdrop open" data-action="close-share">
+      <section class="share-dialog" role="dialog" aria-modal="true" aria-label="分享企划摘要" data-stop-close>
+        <div class="share-head">
+          <div><p class="eyebrow">SHARE PLAN</p><h2>分享企划摘要</h2></div>
+          <button class="icon-btn" data-action="close-share" title="关闭">${icons.close}</button>
+        </div>
+        <div class="share-preview">
+          <div class="share-cover">
+            ${mediaIds[0] ? renderMediaThumbnail(mediaIds[0], `${idea.theme}参考`) : '<img src="./assets/cat-camera.png" alt="拍照小猫" />'}
+          </div>
+          <div class="share-copy">
+            <span class="share-label">PHOTO PLAN</span>
+            <h3>${escapeHtml(idea.theme)}</h3>
+            ${idea.concept ? `<p>${escapeHtml(idea.concept)}</p>` : ""}
+            <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.poseTags)}</div>
+            ${idea.note ? `<p class="share-note">${escapeHtml(idea.note)}</p>` : ""}
+          </div>
+        </div>
+        <p class="share-privacy">分享的是静态摘要，不会上传你的企划，也不会让对方修改本机数据。</p>
+        <div class="share-actions">
+          <button class="primary-btn" data-action="system-share" data-id="${idea.id}">${icons.share}<span>系统分享</span></button>
+          <button class="ghost-btn" data-action="copy-summary" data-id="${idea.id}">复制文字</button>
+          <button class="ghost-btn" data-action="save-share-image" data-id="${idea.id}">保存分享图片</button>
+        </div>
+      </section>
     </div>
   `;
 }
@@ -990,6 +1049,17 @@ function handleClick(event) {
     state.settingsOpen = false;
     render();
   }
+  if (action === "open-share") {
+    state.sharingIdeaId = target.dataset.id;
+    render();
+  }
+  if (action === "close-share") {
+    state.sharingIdeaId = null;
+    render();
+  }
+  if (action === "system-share") shareIdea(target.dataset.id);
+  if (action === "copy-summary") copyIdeaSummary(target.dataset.id);
+  if (action === "save-share-image") saveShareImage(target.dataset.id);
   if (action === "set-font-size") {
     state.settings.fontSize = target.dataset.size;
     saveSettings();
@@ -1044,6 +1114,155 @@ function handleClick(event) {
   if (action === "zoom-reset") {
     state.viewerZoom = 1;
     render();
+  }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch {
+      // Fall through for browsers that expose Clipboard API without granting access.
+    }
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("copy failed");
+}
+
+async function copyIdeaSummary(id) {
+  const idea = state.ideas.find((item) => item.id === id);
+  if (!idea) return;
+  try {
+    await copyText(getShareSummary(idea));
+    showToast("企划摘要已复制。");
+  } catch {
+    showToast("复制失败，请稍后再试。");
+  }
+}
+
+async function shareIdea(id) {
+  const idea = state.ideas.find((item) => item.id === id);
+  if (!idea) return;
+  const shareData = { title: `拍照企划：${idea.theme}`, text: getShareSummary(idea) };
+  if (navigator.share) {
+    try {
+      await navigator.share(shareData);
+      return;
+    } catch (error) {
+      if (error.name === "AbortError") return;
+    }
+  }
+  await copyIdeaSummary(id);
+  showToast("当前浏览器不支持系统分享，已复制摘要。");
+}
+
+function loadCanvasImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = reject;
+    image.src = src;
+  });
+}
+
+function drawCoverImage(ctx, image, x, y, width, height) {
+  const scale = Math.max(width / image.width, height / image.height);
+  const sourceWidth = width / scale;
+  const sourceHeight = height / scale;
+  const sourceX = (image.width - sourceWidth) / 2;
+  const sourceY = (image.height - sourceHeight) / 2;
+  ctx.drawImage(image, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) {
+  const chars = [...text];
+  let line = "";
+  let lines = 0;
+  for (let index = 0; index < chars.length; index += 1) {
+    const next = line + chars[index];
+    if (ctx.measureText(next).width > maxWidth && line) {
+      ctx.fillText(line, x, y + lines * lineHeight);
+      lines += 1;
+      line = chars[index];
+      if (lines >= maxLines) return y + lines * lineHeight;
+    } else {
+      line = next;
+    }
+  }
+  if (line && lines < maxLines) {
+    ctx.fillText(line, x, y + lines * lineHeight);
+    lines += 1;
+  }
+  return y + lines * lineHeight;
+}
+
+async function createSharePoster(idea) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1080;
+  canvas.height = 1440;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#f7f5f1";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  const firstMediaUrl = mediaUrl(getIdeaMediaIds(idea)[0] || "");
+  const imageSrc = firstMediaUrl && !firstMediaUrl.includes("#video")
+    ? firstMediaUrl
+    : "./assets/cat-camera.png";
+  const cover = await loadCanvasImage(imageSrc);
+  drawCoverImage(ctx, cover, 60, 60, 960, 650);
+
+  ctx.fillStyle = "#fffefd";
+  ctx.fillRect(60, 710, 960, 670);
+  ctx.fillStyle = "#b84f43";
+  ctx.font = "700 28px system-ui, sans-serif";
+  ctx.fillText("MIAO'S PHOTO NOTES", 110, 782);
+  ctx.fillStyle = "#302d2a";
+  ctx.font = "800 64px system-ui, sans-serif";
+  let y = drawWrappedText(ctx, idea.theme, 110, 870, 860, 76, 2) + 24;
+  if (idea.concept) {
+    ctx.fillStyle = "#655f59";
+    ctx.font = "36px system-ui, sans-serif";
+    y = drawWrappedText(ctx, idea.concept, 110, y, 860, 52, 3) + 26;
+  }
+  const detailLines = [
+    idea.outfitTags.length ? `穿搭  ${idea.outfitTags.join(" / ")}` : "",
+    idea.poseTags.length ? `姿势  ${idea.poseTags.join(" / ")}` : "",
+    idea.placeTypes.length ? `地点  ${idea.placeTypes.join(" / ")}` : "",
+  ].filter(Boolean);
+  ctx.font = "32px system-ui, sans-serif";
+  ctx.fillStyle = "#514c47";
+  for (const line of detailLines) y = drawWrappedText(ctx, line, 110, y, 860, 46, 2) + 12;
+  ctx.fillStyle = "#7c7771";
+  ctx.font = "26px system-ui, sans-serif";
+  ctx.fillText("把想拍的画面，先悄悄藏进这里。", 110, 1330);
+
+  return new Promise((resolve, reject) =>
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("poster failed"))), "image/png"),
+  );
+}
+
+async function saveShareImage(id) {
+  const idea = state.ideas.find((item) => item.id === id);
+  if (!idea) return;
+  try {
+    const blob = await createSharePoster(idea);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${idea.theme}-分享摘要.png`;
+    link.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("分享图片已生成。");
+  } catch {
+    showToast("分享图片生成失败，请稍后再试。");
   }
 }
 
