@@ -1511,7 +1511,7 @@ body.reduce-motion *::after {
 
   .filters {
     position: static;
-    order: initial;
+    order: -1;
   }
 
   .hero-side {

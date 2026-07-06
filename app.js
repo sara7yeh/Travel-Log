@@ -750,6 +750,8 @@ function renderIdeaDetail() {
             <div class="detail-section-head"><div><span class="section-kicker">REFERENCES</span><h3>参考照片与视频</h3></div><span>${referenceIds.length} 个</span></div>
             ${renderDetailMediaGrid(referenceIds, idea.theme, "还没有参考素材")}
           </section>
+          <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.accessoryTags, "accessory")}${tagChips(idea.deviceTags, "device")}${tagChips(idea.poseTags)}</div>
+          ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
           <section class="detail-section result-section">
             <div class="detail-section-head"><div><span class="section-kicker">MY PHOTOS</span><h3>我的已拍作品</h3></div><span>${resultIds.length} 个</span></div>
             ${
@@ -759,8 +761,6 @@ function renderIdeaDetail() {
             }
             ${renderDetailMediaGrid(resultIds, idea.theme, idea.status === "captured" ? "把拍好的照片放进这里" : "完成拍摄后，可以上传自己的成片")}
           </section>
-          <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.accessoryTags, "accessory")}${tagChips(idea.deviceTags, "device")}${tagChips(idea.poseTags)}</div>
-          ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
         </div>
       </section>
     </div>
