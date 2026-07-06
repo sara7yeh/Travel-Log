@@ -24,6 +24,8 @@ const seedIdeas = [
     theme: "秋冬氛围",
     concept: "穿大衣和围巾拍一组自然温暖的日常照片",
     outfitTags: ["大衣", "围巾", "短靴"],
+    accessoryTags: ["围巾", "耳环"],
+    deviceTags: ["手机", "三脚架"],
     poseTags: ["走路", "回头", "捧热饮"],
     placeTypes: ["落叶街道", "公园", "街角"],
     note: "傍晚的暖光很好看，也可以拍围巾和手部细节。",
@@ -34,6 +36,8 @@ const seedIdeas = [
     theme: "日落海边",
     concept: "在太阳快落下的时候拍海风、剪影和散步的画面",
     outfitTags: ["白裙", "薄外套", "草帽"],
+    accessoryTags: ["草帽", "耳环"],
+    deviceTags: ["手机", "微单"],
     poseTags: ["背影", "侧脸", "走向海边"],
     placeTypes: ["海边", "沙滩", "礁石"],
     note: "提前看日落时间，逆光时可以拍轮廓和头发被风吹起的瞬间。",
@@ -44,6 +48,8 @@ const seedIdeas = [
     theme: "咖啡厅日常",
     concept: "记录喝咖啡、看窗外和随手翻书的松弛感",
     outfitTags: ["针织衫", "衬衫", "托特包"],
+    accessoryTags: ["托特包", "眼镜"],
+    deviceTags: ["手机", "桌面支架"],
     poseTags: ["托腮", "看窗外", "手拿咖啡"],
     placeTypes: ["咖啡厅", "窗边", "露台"],
     note: "选靠窗的位置，桌上的咖啡、书和甜点也可以拍细节。",
@@ -54,6 +60,8 @@ const seedIdeas = [
     theme: "图书馆安静感",
     concept: "在书架和阅读区拍安静、专注的日常照片",
     outfitTags: ["白衬衫", "针织背心", "眼镜"],
+    accessoryTags: ["眼镜", "帆布包"],
+    deviceTags: ["手机", "静音相机"],
     poseTags: ["低头看书", "书架侧影", "坐姿"],
     placeTypes: ["图书馆", "书店", "阅读区"],
     note: "尽量不用闪光灯，适合拍手翻书、书架之间和桌面光影。",
@@ -69,13 +77,17 @@ let state = {
     theme: "全部",
     status: "all",
     outfit: "",
+    accessory: "",
+    device: "",
     pose: "",
     place: "",
   },
   editingId: null,
   viewingIdeaId: null,
   viewerMediaId: null,
+  viewerMediaIds: [],
   viewerZoom: 1,
+  detailScrollTop: 0,
   sharingIdeaId: null,
   settingsOpen: false,
   settings: loadSettings(),
@@ -129,6 +141,8 @@ const translations = {
   "已拍": "Captured",
   "风格主题": "Theme",
   "衣服造型": "Outfit",
+  "配饰": "Accessories",
+  "拍摄设备": "Camera gear",
   "姿势构图": "Pose & composition",
   "适配地点类型": "Location type",
   "新增灵感": "Add plan",
@@ -154,6 +168,8 @@ const translations = {
   "具体地点（可选）": "Specific location (optional)",
   "具体想拍什么（可选）": "What to shoot (optional)",
   "衣服/造型标签（可选）": "Outfit tags (optional)",
+  "配饰标签（可选）": "Accessory tags (optional)",
+  "拍摄设备标签（可选）": "Camera gear tags (optional)",
   "姿势/构图标签（可选）": "Pose tags (optional)",
   "适配地点类型（可选）": "Location tags (optional)",
   "备注（可选）": "Notes (optional)",
@@ -194,9 +210,15 @@ function translateInterface() {
   }
   document.querySelectorAll("[placeholder]").forEach((element) => {
     const placeholderMap = {
-      "例如 角色 cosplay、马面裙写真": "e.g. Character cosplay or hanfu portrait",
-      "例如 云南、某家咖啡厅": "e.g. Yunnan or a favorite cafe",
-      "光线、氛围、拍摄小提醒": "Lighting, mood, and shooting notes",
+      "例如 秋冬氛围、日落海边、咖啡厅日常": "e.g. Autumn mood, sunset beach, cafe day",
+      "例如 海边木栈道、靠窗的咖啡厅": "e.g. A seaside boardwalk or window-side cafe",
+      "例如 日落时拍海边背影，或在图书馆拍安静阅读": "e.g. A beach silhouette or quiet library portrait",
+      "大衣，围巾，白裙，针织衫": "Coat, scarf, white dress, knitwear",
+      "耳环，草帽，眼镜，托特包": "Earrings, sun hat, glasses, tote bag",
+      "手机，微单，三脚架，补光灯": "Phone, mirrorless camera, tripod, light",
+      "走路，回头，背影，低头看书": "Walking, looking back, silhouette, reading",
+      "海边，咖啡厅，图书馆，公园": "Beach, cafe, library, park",
+      "日落时间、光线方向、需要携带的物品": "Sunset time, light direction, items to bring",
     };
     if (placeholderMap[element.placeholder]) element.placeholder = placeholderMap[element.placeholder];
   });
@@ -378,6 +400,8 @@ async function seedIfNeeded() {
       theme: item.theme,
       concept: item.concept,
       outfitTags: item.outfitTags,
+      accessoryTags: item.accessoryTags,
+      deviceTags: item.deviceTags,
       poseTags: item.poseTags,
       placeTypes: item.placeTypes,
       specificPlace: "",
@@ -405,10 +429,26 @@ async function migrateEverydaySeedContent() {
       theme: replacement.theme,
       concept: replacement.concept,
       outfitTags: replacement.outfitTags,
+      accessoryTags: replacement.accessoryTags,
+      deviceTags: replacement.deviceTags,
       poseTags: replacement.poseTags,
       placeTypes: replacement.placeTypes,
       note: replacement.note,
       seedContentVersion: 2,
+    });
+  }
+}
+
+async function migrateAccessoryAndDeviceTags() {
+  const examplesByConcept = new Map(seedIdeas.map((idea) => [idea.concept, idea]));
+  const ideas = await getAll(IDEA_STORE);
+  for (const idea of ideas) {
+    const example = examplesByConcept.get(idea.concept);
+    if (!example || (Array.isArray(idea.accessoryTags) && Array.isArray(idea.deviceTags))) continue;
+    await putRecord(IDEA_STORE, {
+      ...idea,
+      accessoryTags: example.accessoryTags,
+      deviceTags: example.deviceTags,
     });
   }
 }
@@ -424,6 +464,8 @@ async function removeExactDuplicateIdeas() {
       theme: idea.theme,
       concept: idea.concept || "",
       outfitTags: idea.outfitTags || [],
+      accessoryTags: idea.accessoryTags || [],
+      deviceTags: idea.deviceTags || [],
       poseTags: idea.poseTags || [],
       placeTypes: idea.placeTypes || [],
       specificPlace: idea.specificPlace || "",
@@ -479,15 +521,19 @@ async function loadData() {
       mediaIds: getIdeaMediaIds(idea),
       resultMediaIds: getResultMediaIds(idea),
       concept: idea.concept || "",
+      accessoryTags: idea.accessoryTags || [],
+      deviceTags: idea.deviceTags || [],
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 function getFilteredIdeas() {
   return state.ideas.filter((idea) => {
-    const { theme, outfit, pose, place } = state.filters;
+    const { theme, outfit, accessory, device, pose, place } = state.filters;
     if (theme !== "全部" && idea.theme !== theme) return false;
     if (outfit && !idea.outfitTags.includes(outfit)) return false;
+    if (accessory && !idea.accessoryTags.includes(accessory)) return false;
+    if (device && !idea.deviceTags.includes(device)) return false;
     if (pose && !idea.poseTags.includes(pose)) return false;
     if (place && !idea.placeTypes.includes(place)) return false;
     return true;
@@ -618,6 +664,12 @@ function render() {
   applySettings();
   translateInterface();
   bindEvents();
+  if (state.viewingIdeaId && state.detailScrollTop) {
+    window.requestAnimationFrame(() => {
+      const detail = document.querySelector(".theme-detail");
+      if (detail) detail.scrollTop = state.detailScrollTop;
+    });
+  }
 }
 
 function renderIdeaCard(idea) {
@@ -645,6 +697,8 @@ function renderIdeaCard(idea) {
         ${idea.concept ? `<p class="idea-concept">${escapeHtml(idea.concept)}</p>` : ""}
         <div class="chip-row">${tagChips(idea.placeTypes, "sage")}</div>
         <div class="chip-row">${tagChips(idea.outfitTags, "sky")}</div>
+        <div class="chip-row">${tagChips(idea.accessoryTags, "accessory")}</div>
+        <div class="chip-row">${tagChips(idea.deviceTags, "device")}</div>
         <div class="chip-row">${tagChips(idea.poseTags)}</div>
         ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
         <div class="card-footer-actions">
@@ -705,7 +759,7 @@ function renderIdeaDetail() {
             }
             ${renderDetailMediaGrid(resultIds, idea.theme, idea.status === "captured" ? "把拍好的照片放进这里" : "完成拍摄后，可以上传自己的成片")}
           </section>
-          <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.poseTags)}</div>
+          <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.accessoryTags, "accessory")}${tagChips(idea.deviceTags, "device")}${tagChips(idea.poseTags)}</div>
           ${idea.note ? `<p class="idea-note">${escapeHtml(idea.note)}</p>` : ""}
         </div>
       </section>
@@ -738,15 +792,20 @@ function renderMediaViewer() {
   const url = mediaUrl(state.viewerMediaId);
   if (!url) return "";
   const isVideo = url.includes("#video");
+  const currentIndex = Math.max(0, state.viewerMediaIds.indexOf(state.viewerMediaId));
+  const canBrowse = state.viewerMediaIds.length > 1;
   return `
     <div class="media-viewer-backdrop" data-action="close-viewer">
       <div class="media-viewer" data-stop-close>
         <div class="viewer-toolbar">
+          ${canBrowse ? `<span class="viewer-counter">${currentIndex + 1} / ${state.viewerMediaIds.length}</span>` : ""}
           ${isVideo ? "" : '<button class="icon-btn" data-action="zoom-out" title="缩小">−</button><button class="icon-btn zoom-reset" data-action="zoom-reset" title="恢复原始大小">1:1</button><button class="icon-btn" data-action="zoom-in" title="放大">+</button>'}
           <button class="icon-btn" data-action="close-viewer" title="关闭">${icons.close}</button>
         </div>
-        <div class="viewer-stage">
+        <div class="viewer-stage" id="viewer-stage">
+          ${canBrowse ? '<button class="viewer-nav viewer-prev" data-action="viewer-prev" title="上一张" aria-label="上一张">‹</button>' : ""}
           ${isVideo ? `<video src="${url.replace("#video", "")}" controls autoplay playsinline></video>` : `<img src="${url}" alt="放大的照片" style="transform: scale(${state.viewerZoom})" />`}
+          ${canBrowse ? '<button class="viewer-nav viewer-next" data-action="viewer-next" title="下一张" aria-label="下一张">›</button>' : ""}
         </div>
       </div>
     </div>
@@ -781,6 +840,8 @@ function renderFilters() {
         <div class="chip-row">${themeButtons}</div>
       </div>
       ${renderSelectFilter("outfit", "衣服造型", optionsFor("outfitTags"))}
+      ${renderSelectFilter("accessory", "配饰", optionsFor("accessoryTags"))}
+      ${renderSelectFilter("device", "拍摄设备", optionsFor("deviceTags"))}
       ${renderSelectFilter("pose", "姿势构图", optionsFor("poseTags"))}
       ${renderSelectFilter("place", "适配地点类型", optionsFor("placeTypes"))}
     </aside>
@@ -819,6 +880,8 @@ function getShareSummary(idea) {
   const lines = [`拍照企划：${idea.theme}`];
   if (idea.concept) lines.push(`想拍：${idea.concept}`);
   if (idea.outfitTags.length) lines.push(`穿搭：${idea.outfitTags.join("、")}`);
+  if (idea.accessoryTags.length) lines.push(`配饰：${idea.accessoryTags.join("、")}`);
+  if (idea.deviceTags.length) lines.push(`设备：${idea.deviceTags.join("、")}`);
   if (idea.poseTags.length) lines.push(`姿势：${idea.poseTags.join("、")}`);
   if (idea.placeTypes.length) lines.push(`地点：${idea.placeTypes.join("、")}`);
   if (idea.specificPlace) lines.push(`具体地点：${idea.specificPlace}`);
@@ -848,7 +911,7 @@ function renderShareDialog() {
             <span class="share-label">PHOTO PLAN</span>
             <h3>${escapeHtml(idea.theme)}</h3>
             ${idea.concept ? `<p>${escapeHtml(idea.concept)}</p>` : ""}
-            <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.poseTags)}</div>
+            <div class="detail-tags">${tagChips(idea.placeTypes, "sage")}${tagChips(idea.outfitTags, "sky")}${tagChips(idea.accessoryTags, "accessory")}${tagChips(idea.deviceTags, "device")}${tagChips(idea.poseTags)}</div>
             ${idea.note ? `<p class="share-note">${escapeHtml(idea.note)}</p>` : ""}
           </div>
         </div>
@@ -944,34 +1007,44 @@ function renderDrawer() {
           <div class="form-grid">
             <div class="field">
               <label for="theme">想拍类别 / 风格主题</label>
-              <input id="theme" name="theme" list="theme-list" value="${escapeHtml(editing?.theme || "")}" placeholder="例如 角色 cosplay、马面裙写真" required />
+              <input id="theme" name="theme" list="theme-list" value="${escapeHtml(editing?.theme || "")}" placeholder="例如 秋冬氛围、日落海边、咖啡厅日常" required />
               <datalist id="theme-list">${themeOptions}</datalist>
             </div>
             <div class="field">
               <label for="specificPlace">具体地点（可选）</label>
-              <input id="specificPlace" name="specificPlace" value="${escapeHtml(editing?.specificPlace || "")}" placeholder="例如 云南、某家咖啡厅" />
+              <input id="specificPlace" name="specificPlace" value="${escapeHtml(editing?.specificPlace || "")}" placeholder="例如 海边木栈道、靠窗的咖啡厅" />
             </div>
           </div>
           <div class="field">
             <label for="concept">具体想拍什么（可选）</label>
-            <input id="concept" name="concept" value="${escapeHtml(editing?.concept || "")}" placeholder="例如 想拍某个角色 cosplay / 穿马面裙拍一组照片 / 云南漂流视频" />
+            <input id="concept" name="concept" value="${escapeHtml(editing?.concept || "")}" placeholder="例如 日落时拍海边背影，或在图书馆拍安静阅读" />
           </div>
           <div class="field">
             <label for="outfitTags">衣服/造型标签（可选）</label>
-            <input id="outfitTags" name="outfitTags" value="${escapeHtml(editing?.outfitTags.join("，") || "")}" placeholder="马面裙，假发，角色服，速干衣" />
+            <input id="outfitTags" name="outfitTags" value="${escapeHtml(editing?.outfitTags.join("，") || "")}" placeholder="大衣，围巾，白裙，针织衫" />
             <span class="tag-help">用逗号、顿号或换行分隔。</span>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label for="accessoryTags">配饰标签（可选）</label>
+              <input id="accessoryTags" name="accessoryTags" value="${escapeHtml(editing?.accessoryTags.join("，") || "")}" placeholder="耳环，草帽，眼镜，托特包" />
+            </div>
+            <div class="field">
+              <label for="deviceTags">拍摄设备标签（可选）</label>
+              <input id="deviceTags" name="deviceTags" value="${escapeHtml(editing?.deviceTags.join("，") || "")}" placeholder="手机，微单，三脚架，补光灯" />
+            </div>
           </div>
           <div class="field">
             <label for="poseTags">姿势/构图标签（可选）</label>
-            <input id="poseTags" name="poseTags" value="${escapeHtml(editing?.poseTags.join("，") || "")}" placeholder="御姐站姿，蹲姿，漂流视频，背影" />
+            <input id="poseTags" name="poseTags" value="${escapeHtml(editing?.poseTags.join("，") || "")}" placeholder="走路，回头，背影，低头看书" />
           </div>
           <div class="field">
             <label for="placeTypes">适配地点类型（可选）</label>
-            <input id="placeTypes" name="placeTypes" value="${escapeHtml(editing?.placeTypes.join("，") || "")}" placeholder="海边，咖啡厅，漫展，酒店，漂流" />
+            <input id="placeTypes" name="placeTypes" value="${escapeHtml(editing?.placeTypes.join("，") || "")}" placeholder="海边，咖啡厅，图书馆，公园" />
           </div>
           <div class="field">
             <label for="note">备注（可选）</label>
-            <textarea id="note" name="note" placeholder="光线、氛围、拍摄小提醒">${escapeHtml(editing?.note || "")}</textarea>
+            <textarea id="note" name="note" placeholder="日落时间、光线方向、需要携带的物品">${escapeHtml(editing?.note || "")}</textarea>
           </div>
           <div class="form-actions">
             <button type="button" class="ghost-btn" data-action="close-form">取消</button>
@@ -1018,6 +1091,30 @@ function bindEvents() {
   document.querySelectorAll("[data-setting]").forEach((control) => {
     control.addEventListener("change", handleSettingChange);
   });
+  const detailPanel = document.querySelector(".theme-detail");
+  detailPanel?.addEventListener("scroll", () => {
+    state.detailScrollTop = detailPanel.scrollTop;
+  }, { passive: true });
+  const viewerStage = $("#viewer-stage");
+  if (viewerStage) {
+    let touchStartX = 0;
+    viewerStage.addEventListener("touchstart", (event) => {
+      touchStartX = event.changedTouches[0]?.clientX || 0;
+    }, { passive: true });
+    viewerStage.addEventListener("touchend", (event) => {
+      const distance = (event.changedTouches[0]?.clientX || 0) - touchStartX;
+      if (Math.abs(distance) > 45) moveViewer(distance < 0 ? 1 : -1);
+    }, { passive: true });
+  }
+  document.onkeydown = (event) => {
+    if (!state.viewerMediaId) return;
+    if (event.key === "ArrowLeft") moveViewer(-1);
+    if (event.key === "ArrowRight") moveViewer(1);
+    if (event.key === "Escape") {
+      state.viewerMediaId = null;
+      render();
+    }
+  };
 }
 
 function saveSettings() {
@@ -1072,10 +1169,12 @@ function handleClick(event) {
   }
   if (action === "open-idea") {
     state.viewingIdeaId = target.dataset.id;
+    state.detailScrollTop = 0;
     render();
   }
   if (action === "close-idea") {
     state.viewingIdeaId = null;
+    state.detailScrollTop = 0;
     render();
   }
   if (action === "set-status") {
@@ -1085,7 +1184,7 @@ function handleClick(event) {
     if (target.dataset.status === "captured") scrollToSection("captured-section");
   }
   if (action === "clear-filters") {
-    state.filters = { theme: "全部", status: "all", outfit: "", pose: "", place: "" };
+    state.filters = { theme: "全部", status: "all", outfit: "", accessory: "", device: "", pose: "", place: "" };
     render();
     showToast("筛选已清空。");
   }
@@ -1094,6 +1193,11 @@ function handleClick(event) {
   if (action === "mark-captured") markCaptured(target.dataset.id);
   if (action === "mark-planned") markPlanned(target.dataset.id);
   if (action === "open-viewer") {
+    state.detailScrollTop = document.querySelector(".theme-detail")?.scrollTop || 0;
+    const viewingIdea = state.ideas.find((idea) => idea.id === state.viewingIdeaId);
+    state.viewerMediaIds = viewingIdea
+      ? [...getIdeaMediaIds(viewingIdea), ...getResultMediaIds(viewingIdea)]
+      : [target.dataset.mediaId];
     state.viewerMediaId = target.dataset.mediaId;
     state.viewerZoom = 1;
     render();
@@ -1103,6 +1207,8 @@ function handleClick(event) {
     state.viewerZoom = 1;
     render();
   }
+  if (action === "viewer-prev") moveViewer(-1);
+  if (action === "viewer-next") moveViewer(1);
   if (action === "zoom-in") {
     state.viewerZoom = Math.min(4, state.viewerZoom + 0.25);
     render();
@@ -1115,6 +1221,15 @@ function handleClick(event) {
     state.viewerZoom = 1;
     render();
   }
+}
+
+function moveViewer(direction) {
+  if (state.viewerMediaIds.length < 2) return;
+  const currentIndex = Math.max(0, state.viewerMediaIds.indexOf(state.viewerMediaId));
+  const nextIndex = (currentIndex + direction + state.viewerMediaIds.length) % state.viewerMediaIds.length;
+  state.viewerMediaId = state.viewerMediaIds[nextIndex];
+  state.viewerZoom = 1;
+  render();
 }
 
 async function copyText(text) {
@@ -1234,6 +1349,8 @@ async function createSharePoster(idea) {
   }
   const detailLines = [
     idea.outfitTags.length ? `穿搭  ${idea.outfitTags.join(" / ")}` : "",
+    idea.accessoryTags.length ? `配饰  ${idea.accessoryTags.join(" / ")}` : "",
+    idea.deviceTags.length ? `设备  ${idea.deviceTags.join(" / ")}` : "",
     idea.poseTags.length ? `姿势  ${idea.poseTags.join(" / ")}` : "",
     idea.placeTypes.length ? `地点  ${idea.placeTypes.join(" / ")}` : "",
   ].filter(Boolean);
@@ -1337,6 +1454,8 @@ async function handleSubmit(event) {
   const now = new Date().toISOString();
   const theme = String(form.get("theme") || "").trim();
   const outfitTags = parseTags(String(form.get("outfitTags") || ""));
+  const accessoryTags = parseTags(String(form.get("accessoryTags") || ""));
+  const deviceTags = parseTags(String(form.get("deviceTags") || ""));
   const poseTags = parseTags(String(form.get("poseTags") || ""));
   const placeTypes = parseTags(String(form.get("placeTypes") || ""));
 
@@ -1365,6 +1484,8 @@ async function handleSubmit(event) {
     theme,
     concept: String(form.get("concept") || "").trim(),
     outfitTags,
+    accessoryTags,
+    deviceTags,
     poseTags,
     placeTypes,
     specificPlace: String(form.get("specificPlace") || "").trim(),
@@ -1470,6 +1591,7 @@ async function init() {
   try {
     await seedIfNeeded();
     await migrateEverydaySeedContent();
+    await migrateAccessoryAndDeviceTags();
     await removeExactDuplicateIdeas();
     await migrateSeedImages();
     await loadData();
