@@ -6,7 +6,7 @@ const SHOT_ITEM_STORE = "shotItems";
 const TEMPLATE_STORE = "templates";
 const SETTINGS_KEY = "photo-notes-settings";
 const SEED_DISABLED_KEY = "photo-notes-seed-disabled";
-const MAX_MEDIA_PER_SECTION = 20;
+const MAX_MEDIA_PER_SECTION = 40;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 
 const defaultSettings = {
@@ -94,6 +94,7 @@ let state = {
   templateTargetId: null,
   sharingIdeaId: null,
   uploadDrafts: {},
+  formDrafts: {},
   toastTimer: null,
 };
 
@@ -883,6 +884,7 @@ function renderPlanDetail() {
   const items = planItems(plan.id);
   const progress = planProgress(plan);
   const allDone = progress.total > 0 && progress.done === progress.total;
+  const planTags = categorizedTagChips(allPlanTags(plan));
   return `
     <div class="drawer-backdrop theme-backdrop open" data-action="close-plan">
       <section class="theme-detail layered-detail" data-stop-close>
@@ -905,6 +907,10 @@ function renderPlanDetail() {
               ? `<section class="detail-section plan-note-section"><div class="detail-section-head"><div><span class="section-kicker">NOTE</span><h3>备注</h3></div></div><p class="idea-note">${escapeHtml(plan.concept)}</p></section>`
               : ""
           }
+          <section class="detail-section plan-tags-section">
+            <div class="detail-section-head"><div><span class="section-kicker">TAGS</span><h3>标签 🏷️</h3></div></div>
+            <div class="detail-tags">${planTags || "<span class='muted'>还没有标签</span>"}</div>
+          </section>
           <section class="detail-section">
             <div class="detail-section-head"><div><span class="section-kicker">CHECKLIST</span><h3>小企划清单</h3></div><span>${progress.done}/${progress.total}</span></div>
             <div class="progress-line detail-progress"><span style="width:${progress.total ? (progress.done / progress.total) * 100 : 0}%"></span></div>
@@ -1032,17 +1038,18 @@ function renderPlanDrawer() {
   const editing = state.editingPlanId && state.editingPlanId !== "new" ? state.ideas.find((idea) => idea.id === state.editingPlanId) : null;
   if (!state.editingPlanId) return "";
   const coverId = editing?.coverMediaId || "";
+  const draftKey = `plan-${state.editingPlanId}`;
   return `
     <div class="drawer-backdrop open" data-action="close-plan-form">
       <section class="drawer" data-stop-close>
         <div class="drawer-head"><div><p class="eyebrow">${editing ? "EDIT PLAN" : "NEW PLAN"}</p><h2>${editing ? "编辑拍摄企划" : "新增拍摄企划"}</h2></div><button class="icon-btn" data-action="close-plan-form">${icons.close}</button></div>
-        <form class="form" id="plan-form">
-          <div class="field"><label for="theme">企划名称</label><input id="theme" name="theme" value="${escapeHtml(editing?.theme || "")}" placeholder="例如 生日写真、日落海边、咖啡厅日常" required /></div>
-          <div class="field"><label for="concept">企划说明（可选）</label><textarea id="concept" name="concept" placeholder="例如 想拍一组生日餐厅、合照和室外散步的照片">${escapeHtml(editing?.concept || "")}</textarea></div>
+        <form class="form" id="plan-form" data-draft-key="${draftKey}">
+          <div class="field"><label for="theme">企划名称</label><input id="theme" name="theme" data-draft-key="${draftKey}" data-draft-field="theme" value="${escapeHtml(draftValue(draftKey, "theme", editing?.theme || ""))}" placeholder="例如 生日写真、日落海边、咖啡厅日常" required /></div>
+          <div class="field"><label for="concept">企划说明（可选）</label><textarea id="concept" name="concept" data-draft-key="${draftKey}" data-draft-field="concept" placeholder="例如 想拍一组生日餐厅、合照和室外散步的照片">${escapeHtml(draftValue(draftKey, "concept", editing?.concept || ""))}</textarea></div>
           ${renderCoverUpload(coverId)}
           <div class="form-grid">
-            <div class="field"><label for="date">日期（可选）</label><input id="date" name="date" type="date" value="${escapeHtml(editing?.date || "")}" /></div>
-            <div class="field"><label for="specificPlace">总地点（可选）</label><input id="specificPlace" name="specificPlace" value="${escapeHtml(editing?.specificPlace || "")}" placeholder="例如 云南、某家餐厅、海边" /></div>
+            <div class="field"><label for="date">日期（可选）</label><input id="date" name="date" type="date" data-draft-key="${draftKey}" data-draft-field="date" value="${escapeHtml(draftValue(draftKey, "date", editing?.date || ""))}" /></div>
+            <div class="field"><label for="specificPlace">总地点（可选）</label><input id="specificPlace" name="specificPlace" data-draft-key="${draftKey}" data-draft-field="specificPlace" value="${escapeHtml(draftValue(draftKey, "specificPlace", editing?.specificPlace || ""))}" placeholder="例如 云南、某家餐厅、海边" /></div>
           </div>
           <div class="form-actions"><button type="button" class="ghost-btn" data-action="close-plan-form">取消</button><button type="submit" class="primary-btn">${editing ? "保存修改" : "保存企划"}</button></div>
         </form>
@@ -1075,12 +1082,13 @@ function renderItemDrawer() {
   const editing = state.editingItemId && state.editingItemId !== "new" ? state.shotItems.find((item) => item.id === state.editingItemId) : null;
   if (!state.editingItemId) return "";
   const planId = editing?.planId || state.viewingIdeaId;
+  const draftKey = `item-${state.editingItemId}`;
   return `
     <div class="drawer-backdrop open" data-action="close-item-form">
       <section class="drawer" data-stop-close>
         <div class="drawer-head"><div><p class="eyebrow">${editing ? "EDIT ITEM" : "NEW ITEM"}</p><h2>${editing ? "编辑小企划" : "新增小企划"}</h2></div><button class="icon-btn" data-action="close-item-form">${icons.close}</button></div>
-        <form class="form" id="item-form" data-plan-id="${planId || ""}">
-          ${renderShotFields(editing, "item")}
+        <form class="form" id="item-form" data-plan-id="${planId || ""}" data-draft-key="${draftKey}">
+          ${renderShotFields(editing, "item", draftKey)}
           <div class="form-actions"><button type="button" class="ghost-btn" data-action="close-item-form">取消</button><button type="submit" class="primary-btn">${editing ? "保存修改" : "保存小企划"}</button></div>
         </form>
       </section>
@@ -1091,12 +1099,13 @@ function renderItemDrawer() {
 function renderTemplateDrawer() {
   const editing = state.editingTemplateId && state.editingTemplateId !== "new" ? state.templates.find((template) => template.id === state.editingTemplateId) : null;
   if (!state.editingTemplateId) return "";
+  const draftKey = `template-${state.editingTemplateId}`;
   return `
     <div class="drawer-backdrop open" data-action="close-template-form">
       <section class="drawer" data-stop-close>
         <div class="drawer-head"><div><p class="eyebrow">${editing ? "EDIT TEMPLATE" : "NEW TEMPLATE"}</p><h2>${editing ? "编辑万能模板" : "新增万能模板"}</h2></div><button class="icon-btn" data-action="close-template-form">${icons.close}</button></div>
-        <form class="form" id="template-form">
-          ${renderShotFields(editing, "template")}
+        <form class="form" id="template-form" data-draft-key="${draftKey}">
+          ${renderShotFields(editing, "template", draftKey)}
           <div class="form-actions"><button type="button" class="ghost-btn" data-action="close-template-form">取消</button><button type="submit" class="primary-btn">${editing ? "保存修改" : "保存模板"}</button></div>
         </form>
       </section>
@@ -1104,26 +1113,27 @@ function renderTemplateDrawer() {
   `;
 }
 
-function renderShotFields(editing, prefix) {
+function renderShotFields(editing, prefix, formDraftKey) {
   const existingMediaIds = editing?.mediaIds || [];
   const draftKey = `${prefix}-reference`;
   return `
-    <div class="field"><label for="${prefix}-title">名称</label><input id="${prefix}-title" name="title" value="${escapeHtml(editing?.title || "")}" placeholder="例如 双人生日合照、御姐站姿、苹果 6s 氛围照" required /></div>
-    <div class="field"><label for="${prefix}-description">具体想拍什么（可选）</label><input id="${prefix}-description" name="description" value="${escapeHtml(editing?.description || "")}" placeholder="例如 靠窗坐着举杯，拍半身和手部细节" /></div>
+    <div class="field"><label for="${prefix}-title">名称</label><input id="${prefix}-title" name="title" data-draft-key="${formDraftKey}" data-draft-field="title" value="${escapeHtml(draftValue(formDraftKey, "title", editing?.title || ""))}" placeholder="例如 双人生日合照、御姐站姿、苹果 6s 氛围照" required /></div>
+    <div class="field"><label for="${prefix}-description">具体想拍什么（可选）</label><input id="${prefix}-description" name="description" data-draft-key="${formDraftKey}" data-draft-field="description" value="${escapeHtml(draftValue(formDraftKey, "description", editing?.description || ""))}" placeholder="例如 靠窗坐着举杯，拍半身和手部细节" /></div>
     ${renderUploadDraft(draftKey, existingMediaIds, "参考图 / 视频（可选）")}
-    <div class="field"><label for="${prefix}-outfitTags">衣服/造型标签（可选）</label><input id="${prefix}-outfitTags" name="outfitTags" value="${escapeHtml((editing?.outfitTags || []).join("，"))}" placeholder="白裙，针织衫，西装外套" /><span class="tag-help">用逗号、顿号或换行分隔。</span></div>
+    <div class="field"><label for="${prefix}-outfitTags">衣服/造型标签（可选）</label><input id="${prefix}-outfitTags" name="outfitTags" data-draft-key="${formDraftKey}" data-draft-field="outfitTags" value="${escapeHtml(draftValue(formDraftKey, "outfitTags", (editing?.outfitTags || []).join("，")))}" placeholder="白裙，针织衫，西装外套" /><span class="tag-help">用逗号、顿号或换行分隔。</span></div>
     <div class="form-grid">
-      <div class="field"><label for="${prefix}-accessoryTags">配饰标签（可选）</label><input id="${prefix}-accessoryTags" name="accessoryTags" value="${escapeHtml((editing?.accessoryTags || []).join("，"))}" placeholder="耳环，草帽，项链，手机" /></div>
-      <div class="field"><label for="${prefix}-deviceTags">拍摄设备标签（可选）</label><input id="${prefix}-deviceTags" name="deviceTags" value="${escapeHtml((editing?.deviceTags || []).join("，"))}" placeholder="手机，微单，长焦，补光灯" /></div>
+      <div class="field"><label for="${prefix}-accessoryTags">配饰标签（可选）</label><input id="${prefix}-accessoryTags" name="accessoryTags" data-draft-key="${formDraftKey}" data-draft-field="accessoryTags" value="${escapeHtml(draftValue(formDraftKey, "accessoryTags", (editing?.accessoryTags || []).join("，")))}" placeholder="耳环，草帽，项链，手机" /></div>
+      <div class="field"><label for="${prefix}-deviceTags">拍摄设备标签（可选）</label><input id="${prefix}-deviceTags" name="deviceTags" data-draft-key="${formDraftKey}" data-draft-field="deviceTags" value="${escapeHtml(draftValue(formDraftKey, "deviceTags", (editing?.deviceTags || []).join("，")))}" placeholder="手机，微单，长焦，补光灯" /></div>
     </div>
-    <div class="field"><label for="${prefix}-poseTags">姿势/构图标签（可选）</label><input id="${prefix}-poseTags" name="poseTags" value="${escapeHtml((editing?.poseTags || []).join("，"))}" placeholder="站姿，坐姿，侧脸，背影" /></div>
-    <div class="field"><label for="${prefix}-placeTypes">适配地点类型（可选）</label><input id="${prefix}-placeTypes" name="placeTypes" value="${escapeHtml((editing?.placeTypes || []).join("，"))}" placeholder="海边，咖啡厅，餐厅，室外" /></div>
-    <div class="field"><label for="${prefix}-note">备注（可选）</label><textarea id="${prefix}-note" name="note" placeholder="光线、道具、拍摄提醒">${escapeHtml(editing?.note || "")}</textarea></div>
+    <div class="field"><label for="${prefix}-poseTags">姿势/构图标签（可选）</label><input id="${prefix}-poseTags" name="poseTags" data-draft-key="${formDraftKey}" data-draft-field="poseTags" value="${escapeHtml(draftValue(formDraftKey, "poseTags", (editing?.poseTags || []).join("，")))}" placeholder="站姿，坐姿，侧脸，背影" /></div>
+    <div class="field"><label for="${prefix}-placeTypes">适配地点类型（可选）</label><input id="${prefix}-placeTypes" name="placeTypes" data-draft-key="${formDraftKey}" data-draft-field="placeTypes" value="${escapeHtml(draftValue(formDraftKey, "placeTypes", (editing?.placeTypes || []).join("，")))}" placeholder="海边，咖啡厅，餐厅，室外" /></div>
+    <div class="field"><label for="${prefix}-note">备注（可选）</label><textarea id="${prefix}-note" name="note" data-draft-key="${formDraftKey}" data-draft-field="note" placeholder="光线、道具、拍摄提醒">${escapeHtml(draftValue(formDraftKey, "note", editing?.note || ""))}</textarea></div>
   `;
 }
 
 function renderUploadDraft(key, existingMediaIds = [], label = "上传素材") {
   const draft = getDraft(key);
+  const needsImages = draft.layout === "grid4" || draft.layout === "grid9";
   const previews = [
     ...existingMediaIds.map((id) => ({ id, url: mediaUrl(id), label: mediaRecord(id)?.collageLayout ? `${mediaRecord(id).collageLayout === 9 ? "九宫格" : "四宫格"}` : "已保存" })),
     ...draft.urls.map((url, index) => ({ id: `new-${index}`, url, label: draft.layout === "single" ? "新增素材" : draft.layout === "grid4" ? "四宫格素材" : "九宫格素材" })),
@@ -1141,15 +1151,16 @@ function renderUploadDraft(key, existingMediaIds = [], label = "上传素材") {
       <div class="preview-frame ${previews.length ? "has-image" : ""}">
         ${previews.length ? renderPreviewItems(previews, key) : "<span>可上传照片 / 视频；拼图只支持图片</span>"}
       </div>
-      <input data-upload-key="${key}" type="file" accept="image/*,video/*" ${draft.layout === "single" ? "multiple" : "multiple"} />
+      <input data-upload-key="${key}" type="file" accept="${needsImages ? "image/*" : "image/*,video/*"}" multiple />
       <p class="tag-help">四宫格必须选择 4 张图片，九宫格必须选择 9 张图片。生成后只保存拼图结果。</p>
     </div>
   `;
 }
 
 function renderPreviewItems(items, key) {
+  const collageClass = items.length === 4 || items.length === 9 ? `square-preview collage-preview-${items.length}` : "";
   return `
-    <div class="preview-grid ${items.length === 4 || items.length === 9 ? "square-preview" : ""}" data-preview-key="${key}">
+    <div class="preview-grid ${collageClass}" data-preview-key="${key}">
       ${items
         .map((item, index) => {
           const cleanUrl = item.url.replace("#video", "");
@@ -1258,6 +1269,10 @@ function bindEvents() {
     }
   });
   document.querySelectorAll("[data-upload-target]").forEach((input) => input.addEventListener("change", handleQuickMediaUpload));
+  document.querySelectorAll("[data-draft-key][data-draft-field]").forEach((input) => {
+    input.addEventListener("input", handleFormDraftInput);
+    input.addEventListener("change", handleFormDraftInput);
+  });
   document.querySelectorAll("[data-action='select-filter']").forEach((select) => {
     select.addEventListener("change", (event) => {
       state.filters[event.target.dataset.filter] = event.target.value;
@@ -1336,6 +1351,7 @@ function handleClick(event) {
     render();
   }
   if (action === "toggle-item") {
+    preserveDetailScroll();
     const id = target.dataset.id;
     state.expandedItemIds.has(id) ? state.expandedItemIds.delete(id) : state.expandedItemIds.add(id);
     render();
@@ -1365,18 +1381,20 @@ function handleClick(event) {
     showToast("筛选已清空。");
   }
   if (action === "set-upload-layout") {
+    syncActiveFormDraft();
     preserveDetailScroll();
     const draft = getDraft(target.dataset.uploadKey);
     draft.layout = target.dataset.layout;
-    clearDraftFiles(draft);
     render();
   }
   if (action === "reorder-upload") {
+    syncActiveFormDraft();
     reorderDraft(target.dataset.uploadKey, Number(target.dataset.index), Number(target.dataset.dir));
     render();
   }
   if (action === "open-viewer") openViewer(target.dataset.mediaId);
   if (action === "close-viewer") {
+    preserveDetailScroll();
     state.viewerMediaId = null;
     state.viewerZoom = 1;
     render();
@@ -1442,6 +1460,12 @@ function handleSettingChange(event) {
   render();
 }
 
+function handleFormDraftInput(event) {
+  const { draftKey, draftField } = event.target.dataset;
+  if (!draftKey || !draftField) return;
+  getFormDraft(draftKey)[draftField] = event.target.value;
+}
+
 function preserveDetailScroll() {
   const detail = document.querySelector(".theme-detail");
   if (detail) {
@@ -1468,6 +1492,26 @@ function getDraft(key) {
   return state.uploadDrafts[key];
 }
 
+function getFormDraft(key) {
+  if (!state.formDrafts[key]) state.formDrafts[key] = {};
+  return state.formDrafts[key];
+}
+
+function draftValue(key, field, fallback = "") {
+  const draft = getFormDraft(key);
+  return Object.prototype.hasOwnProperty.call(draft, field) ? draft[field] : fallback;
+}
+
+function syncActiveFormDraft() {
+  document.querySelectorAll("form[data-draft-key]").forEach((form) => {
+    const key = form.dataset.draftKey;
+    const draft = getFormDraft(key);
+    new FormData(form).forEach((value, field) => {
+      draft[field] = String(value);
+    });
+  });
+}
+
 function clearDraftFiles(draft) {
   draft.urls.forEach((url) => URL.revokeObjectURL(url.replace("#video", "")));
   draft.files = [];
@@ -1477,9 +1521,11 @@ function clearDraftFiles(draft) {
 function clearAllDrafts() {
   Object.values(state.uploadDrafts).forEach(clearDraftFiles);
   state.uploadDrafts = {};
+  state.formDrafts = {};
 }
 
 function handleUploadPreview(event) {
+  syncActiveFormDraft();
   const key = event.target.dataset.uploadKey;
   const draft = getDraft(key);
   const files = [...(event.target.files || [])];
@@ -1590,9 +1636,15 @@ async function handleItemSubmit(event) {
   const now = new Date().toISOString();
   const planId = editing?.planId || event.target.dataset.planId || state.viewingIdeaId;
   const mediaIds = [...(editing?.mediaIds || [])];
-  const newMediaIds = await saveDraftMedia("item-reference");
+  let newMediaIds = [];
+  try {
+    newMediaIds = await saveDraftMedia("item-reference");
+  } catch {
+    showToast("请按当前布局重新选择素材：四宫格 4 张，九宫格 9 张，且不能包含视频。");
+    return;
+  }
   if (mediaIds.length + newMediaIds.length > MAX_MEDIA_PER_SECTION) {
-    showToast("每个小企划最多 20 个参考素材。");
+    showToast(`每个小企划最多 ${MAX_MEDIA_PER_SECTION} 个参考素材。`);
     return;
   }
   mediaIds.push(...newMediaIds);
@@ -1634,7 +1686,17 @@ async function handleTemplateSubmit(event) {
   }
   const now = new Date().toISOString();
   const mediaIds = [...(editing?.mediaIds || [])];
-  const newMediaIds = await saveDraftMedia("template-reference");
+  let newMediaIds = [];
+  try {
+    newMediaIds = await saveDraftMedia("template-reference");
+  } catch {
+    showToast("请按当前布局重新选择素材：四宫格 4 张，九宫格 9 张，且不能包含视频。");
+    return;
+  }
+  if (mediaIds.length + newMediaIds.length > MAX_MEDIA_PER_SECTION) {
+    showToast(`每个模板最多 ${MAX_MEDIA_PER_SECTION} 个参考素材。`);
+    return;
+  }
   mediaIds.push(...newMediaIds);
   await putRecord(TEMPLATE_STORE, {
     ...editing,
@@ -1727,21 +1789,24 @@ function drawCoverImage(ctx, image, x, y, width, height) {
 async function createCollageBlob(files, layout) {
   if (files.length !== layout) throw new Error("wrong collage count");
   if (files.some((file) => !file.type.startsWith("image/"))) throw new Error("collage needs images");
-  const size = 1800;
+  const width = 1800;
+  const height = 2400;
   const gap = 14;
   const columns = layout === 4 ? 2 : 3;
-  const cell = (size - gap * (columns + 1)) / columns;
+  const rows = layout === 4 ? 2 : 3;
+  const cellWidth = (width - gap * (columns + 1)) / columns;
+  const cellHeight = (height - gap * (rows + 1)) / rows;
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#fffefd";
-  ctx.fillRect(0, 0, size, size);
+  ctx.fillRect(0, 0, width, height);
   const images = await Promise.all(files.map(loadImageFromFile));
   images.forEach((image, index) => {
     const row = Math.floor(index / columns);
     const col = index % columns;
-    drawCoverImage(ctx, image, gap + col * (cell + gap), gap + row * (cell + gap), cell, cell);
+    drawCoverImage(ctx, image, gap + col * (cellWidth + gap), gap + row * (cellHeight + gap), cellWidth, cellHeight);
   });
   return new Promise((resolve, reject) =>
     canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error("collage failed"))), "image/jpeg", 0.9),
@@ -1774,7 +1839,7 @@ async function handleQuickMediaUpload(event) {
   const slot = event.target.dataset.uploadTarget === "item-result" ? "resultMediaIds" : "mediaIds";
   const mediaCount = expected ? 1 : files.length;
   if ((item[slot] || []).length + mediaCount > MAX_MEDIA_PER_SECTION) {
-    showToast(slot === "mediaIds" ? "每个小企划最多 20 个参考素材。" : "每个小企划最多 20 个成片。");
+    showToast(slot === "mediaIds" ? `每个小企划最多 ${MAX_MEDIA_PER_SECTION} 个参考素材。` : `每个小企划最多 ${MAX_MEDIA_PER_SECTION} 个成片。`);
     return;
   }
   const now = new Date().toISOString();
@@ -1834,6 +1899,7 @@ function closeTemplateForm() {
 }
 
 async function toggleItemStatus(id) {
+  preserveDetailScroll();
   const item = state.shotItems.find((entry) => entry.id === id);
   if (!item) return;
   await putRecord(SHOT_ITEM_STORE, { ...item, status: item.status === "completed" ? "planned" : "completed", updatedAt: new Date().toISOString() });
@@ -1843,6 +1909,7 @@ async function toggleItemStatus(id) {
 }
 
 async function moveItem(id, direction) {
+  preserveDetailScroll();
   const item = state.shotItems.find((entry) => entry.id === id);
   if (!item) return;
   const items = planItems(item.planId);
@@ -1881,6 +1948,7 @@ async function deletePlan(id) {
 }
 
 async function deleteShotItem(id) {
+  preserveDetailScroll();
   const item = state.shotItems.find((entry) => entry.id === id);
   if (!item || !window.confirm("删除这个小企划吗？相关本机素材也会移除。")) return;
   await deleteRecord(SHOT_ITEM_STORE, id);
@@ -1892,6 +1960,7 @@ async function deleteShotItem(id) {
 }
 
 async function deleteItemMedia(itemId, mediaId, slot) {
+  preserveDetailScroll();
   const item = state.shotItems.find((entry) => entry.id === itemId);
   if (!item || !window.confirm("删除这个素材吗？")) return;
   const key = slot === "result" ? "resultMediaIds" : "mediaIds";
