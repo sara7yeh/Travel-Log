@@ -87,6 +87,7 @@ let state = {
   viewerMediaIds: [],
   viewerZoom: 1,
   detailScrollTop: 0,
+  pageScrollTop: 0,
   pendingDetailScrollRestore: false,
   editingPlanId: null,
   editingItemId: null,
@@ -699,7 +700,10 @@ function render() {
   applySettings();
   translateInterface();
   bindEvents();
-  if (state.pendingDetailScrollRestore) scheduleDetailScrollRestore();
+  if (state.pendingDetailScrollRestore) {
+    restoreDetailScrollNow();
+    scheduleDetailScrollRestore();
+  }
 }
 
 function renderMainContent(planned, captured) {
@@ -1300,6 +1304,7 @@ function bindEvents() {
     if (event.key === "ArrowLeft") moveViewer(-1);
     if (event.key === "ArrowRight") moveViewer(1);
     if (event.key === "Escape") {
+      preserveDetailScroll();
       state.viewerMediaId = null;
       render();
     }
@@ -1402,14 +1407,17 @@ function handleClick(event) {
   if (action === "viewer-prev") moveViewer(-1);
   if (action === "viewer-next") moveViewer(1);
   if (action === "zoom-in") {
+    preserveDetailScroll();
     state.viewerZoom = Math.min(4, state.viewerZoom + 0.25);
     render();
   }
   if (action === "zoom-out") {
+    preserveDetailScroll();
     state.viewerZoom = Math.max(0.5, state.viewerZoom - 0.25);
     render();
   }
   if (action === "zoom-reset") {
+    preserveDetailScroll();
     state.viewerZoom = 1;
     render();
   }
@@ -1468,21 +1476,33 @@ function handleFormDraftInput(event) {
 
 function preserveDetailScroll() {
   const detail = document.querySelector(".theme-detail");
+  state.pageScrollTop = window.scrollY || document.documentElement.scrollTop || 0;
   if (detail) {
     state.detailScrollTop = detail.scrollTop;
     state.pendingDetailScrollRestore = true;
   }
 }
 
+function restoreDetailScrollNow() {
+  const detail = document.querySelector(".theme-detail");
+  if (!detail || !state.viewingIdeaId) return;
+  const desired = Math.max(0, Math.min(state.detailScrollTop, detail.scrollHeight - detail.clientHeight));
+  detail.scrollTop = desired;
+  if (Math.abs((window.scrollY || 0) - state.pageScrollTop) > 1) window.scrollTo(0, state.pageScrollTop);
+}
+
 function scheduleDetailScrollRestore() {
   const desired = state.detailScrollTop;
+  const pageDesired = state.pageScrollTop;
   state.pendingDetailScrollRestore = false;
-  if (!state.viewingIdeaId || !desired) return;
+  if (!state.viewingIdeaId) return;
   [0, 40, 120, 260, 520].forEach((delay) => {
     window.setTimeout(() => {
       const detail = document.querySelector(".theme-detail");
       if (!detail || !state.viewingIdeaId) return;
-      if (Math.abs(detail.scrollTop - desired) > 6) detail.scrollTop = desired;
+      const next = Math.max(0, Math.min(desired, detail.scrollHeight - detail.clientHeight));
+      if (Math.abs(detail.scrollTop - next) > 6) detail.scrollTop = next;
+      if (Math.abs((window.scrollY || 0) - pageDesired) > 1) window.scrollTo(0, pageDesired);
     }, delay);
   });
 }
@@ -2005,7 +2025,7 @@ async function downloadMedia(id) {
 }
 
 function openViewer(mediaId) {
-  state.detailScrollTop = document.querySelector(".theme-detail")?.scrollTop || 0;
+  preserveDetailScroll();
   const plan = state.ideas.find((idea) => idea.id === state.viewingIdeaId);
   const template = state.templates.find((item) => item.id === state.viewingTemplateId);
   const ids = plan
@@ -2021,6 +2041,7 @@ function openViewer(mediaId) {
 
 function moveViewer(direction) {
   if (state.viewerMediaIds.length < 2) return;
+  preserveDetailScroll();
   const currentIndex = Math.max(0, state.viewerMediaIds.indexOf(state.viewerMediaId));
   const nextIndex = (currentIndex + direction + state.viewerMediaIds.length) % state.viewerMediaIds.length;
   state.viewerMediaId = state.viewerMediaIds[nextIndex];

@@ -1671,6 +1671,9 @@ h1 {
   width: min(980px, 100%);
   max-height: min(92vh, 920px);
   overflow: auto;
+  overscroll-behavior: contain;
+  overflow-anchor: none;
+  scroll-behavior: auto;
   border: 1px solid var(--line);
   border-radius: 8px 8px 0 0;
   background: var(--paper);
