@@ -89,6 +89,8 @@ let state = {
   detailScrollTop: 0,
   pageScrollTop: 0,
   pendingDetailScrollRestore: false,
+  detailRestoreToken: 0,
+  restoringDetailScroll: false,
   editingPlanId: null,
   editingItemId: null,
   editingTemplateId: null,
@@ -1286,7 +1288,9 @@ function bindEvents() {
   document.querySelectorAll("[data-setting]").forEach((control) => control.addEventListener("change", handleSettingChange));
   const detailPanel = document.querySelector(".theme-detail");
   detailPanel?.addEventListener("scroll", () => {
+    if (state.restoringDetailScroll) return;
     state.detailScrollTop = detailPanel.scrollTop;
+    state.detailRestoreToken += 1;
   }, { passive: true });
   const viewerStage = $("#viewer-stage");
   if (viewerStage) {
@@ -1480,6 +1484,7 @@ function preserveDetailScroll() {
   if (detail) {
     state.detailScrollTop = detail.scrollTop;
     state.pendingDetailScrollRestore = true;
+    state.detailRestoreToken += 1;
   }
 }
 
@@ -1487,22 +1492,32 @@ function restoreDetailScrollNow() {
   const detail = document.querySelector(".theme-detail");
   if (!detail || !state.viewingIdeaId) return;
   const desired = Math.max(0, Math.min(state.detailScrollTop, detail.scrollHeight - detail.clientHeight));
+  state.restoringDetailScroll = true;
   detail.scrollTop = desired;
   if (Math.abs((window.scrollY || 0) - state.pageScrollTop) > 1) window.scrollTo(0, state.pageScrollTop);
+  window.setTimeout(() => {
+    state.restoringDetailScroll = false;
+  }, 0);
 }
 
 function scheduleDetailScrollRestore() {
   const desired = state.detailScrollTop;
   const pageDesired = state.pageScrollTop;
+  const token = state.detailRestoreToken;
   state.pendingDetailScrollRestore = false;
   if (!state.viewingIdeaId) return;
   [0, 40, 120, 260, 520].forEach((delay) => {
     window.setTimeout(() => {
       const detail = document.querySelector(".theme-detail");
       if (!detail || !state.viewingIdeaId) return;
+      if (token !== state.detailRestoreToken) return;
       const next = Math.max(0, Math.min(desired, detail.scrollHeight - detail.clientHeight));
+      state.restoringDetailScroll = true;
       if (Math.abs(detail.scrollTop - next) > 6) detail.scrollTop = next;
       if (Math.abs((window.scrollY || 0) - pageDesired) > 1) window.scrollTo(0, pageDesired);
+      window.setTimeout(() => {
+        state.restoringDetailScroll = false;
+      }, 0);
     }, delay);
   });
 }
